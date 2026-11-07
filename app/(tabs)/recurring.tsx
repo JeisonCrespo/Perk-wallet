@@ -22,7 +22,6 @@ import {
   RecurringItem,
 } from '../../src/types/finance';
 import { BRAND_PRESETS, GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
-import { sendTestNotificationNow } from '../../src/services/notificationService';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
 import { DateField } from '../../src/components/DatePickerModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
@@ -667,38 +666,6 @@ export default function ControlScreen() {
                 <Text style={styles.infoDesc}>
                   Recibe recordatorio 1 o 2 días antes en Android. Si compartes Netflix, Spotify u otra suscripción, activa "Compartir" para saber cuánto es tu parte real y cuánto te deben reembolsar.
                 </Text>
-                <TouchableOpacity
-                  style={{
-                    marginTop: 8,
-                    alignSelf: 'flex-start',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                    backgroundColor: '#0369A1',
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                  }}
-                  onPress={async () => {
-                    const ok = await sendTestNotificationNow();
-                    if (ok) {
-                      Alert.alert(
-                        '🔔 Notificación Enviada',
-                        'En 2 segundos verás el recordatorio de prueba en la barra superior de tu teléfono Android.'
-                      );
-                    } else {
-                      Alert.alert(
-                        'Permiso de Notificaciones',
-                        'Asegúrate de permitir las notificaciones de Perk Wallet / Expo Go en los ajustes de tu Android.'
-                      );
-                    }
-                  }}
-                >
-                  <Ionicons name="notifications" size={14} color="#F8FAFC" />
-                  <Text style={{ color: '#F8FAFC', fontSize: 11, fontWeight: '700' }}>
-                    Probar Notificación en Android Ahora
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
 

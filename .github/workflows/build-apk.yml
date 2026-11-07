@@ -80,9 +80,11 @@ jobs:
             - **Mis Ahorros Protegidos**: El dinero que destinas a ahorros cuenta con su propio sub-balance e indicadores independientes.
             - **Cuentas Separadas / Dinero Ajeno**: Ahora filtra estrictamente las cuentas de terceras personas (`isOtherPersonAccount`). Tu dinero y tus ahorros nunca volverán a mezclarse con cuentas de otros.
 
-            #### 🏦 4. Gestión de Cuentas y Bancos Pulida
-            - Botón principal refinado a **"Agregar Banco o Cuenta"** sin duplicación de iconos.
-            - Guardado rápido de cuentas de bancos como Wells Fargo, Chase, Truist, PayPal, Uber Wallet y cuentas manuales/efectivo.
+            #### 🏦 4. Gestión y Reordenamiento Interactivo de Cuentas
+            - **Arrastrar y Soltar (Drag & Drop)**: Reordena tus cuentas apretando y subiendo o bajando con el dedo en tiempo real, o usando las flechas de posición.
+            - **Cuenta Principal Automática**: La cuenta que coloques en la posición #1 es seleccionada automáticamente al registrar cualquier gasto o ingreso.
+            - **Sección Aparte de Mis Ahorros**: Cuentas de ahorro separadas en su propio bloque con saldo acumulado independiente y opción de ocultar/mostrar.
+            - **Botones Optimizados**: Corrección del desborde de texto en "Agregar Banco o Cuenta" y distribución balanceada de acciones.
 
             #### 📁 5. Respaldos Automáticos y Google Drive
             - Creación automática y organizada en la carpeta dedicada `PerkWallet_Respaldos/`.
@@ -93,6 +95,7 @@ jobs:
             #### 🔔 6. Recordatorios Locales Diarios en Android
             - Recordatorio configurable con selección de hora para registrar tus gastos cotidianos.
             - Alertas preventivas 1 a 2 días antes de cada vencimiento de pagos recurrentes o cuotas.
+            - Interfaz limpia: eliminado botón de prueba en recurrentes para una experiencia más profesional.
 
             #### 🌓 7. Modo Dual Claro / Oscuro con Alto Contraste
             - Paleta ergonómica optimizada en modo claro y oscuro, eliminando cualquier inconsistencia de contraste o textos ilegibles.
