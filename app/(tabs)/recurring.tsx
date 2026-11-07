@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   BackHandler,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../../src/context/FinanceContext';
 import {
@@ -110,6 +111,15 @@ export default function ControlScreen() {
     updateSavingsGoalAmount,
     deleteSavingsGoal,
   } = useFinance();
+
+  const scrollRef = useRef<any>(null);
+
+  // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
 
   const [subTab, setSubTab] = useState<ControlSubTab>('recurring');
 
@@ -644,7 +654,7 @@ export default function ControlScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* ================= VISTA 1: RECURRENTES + SUSCRIPCIONES COMPARTIDAS ================= */}
         {subTab === 'recurring' && (
           <>

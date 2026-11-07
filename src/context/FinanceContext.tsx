@@ -252,7 +252,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loans, setLoans] = useState<LoanRecord[]>([]);
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
   const [lastDriveBackupAt, setLastDriveBackupAtState] = useState<string | null>(null);
-  const [isDriveConnected, setIsDriveConnected] = useState(true);
+  const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [driveEmail, setDriveEmail] = useState('');
   const [autoDriveBackupEnabled, setAutoDriveBackupEnabled] = useState(true);
   const [hideOtherMoney, setHideOtherMoney] = useState(false);
@@ -273,20 +273,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setLastDriveBackupAtState(savedDriveBackup.value);
       }
 
+      const savedDriveEmail = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'drive_email'"
+      );
+      if (savedDriveEmail?.value) {
+        setDriveEmail(savedDriveEmail.value);
+      }
+
       const savedDriveConn = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM app_settings WHERE key = 'drive_connected'"
       );
       if (savedDriveConn) {
         setIsDriveConnected(savedDriveConn.value === '1');
       } else {
-        setIsDriveConnected(true);
-      }
-
-      const savedDriveEmail = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM app_settings WHERE key = 'drive_email'"
-      );
-      if (savedDriveEmail?.value) {
-        setDriveEmail(savedDriveEmail.value);
+        setIsDriveConnected(Boolean(savedDriveEmail?.value));
       }
 
       const savedAutoBackup = await db.getFirstAsync<{ value: string }>(

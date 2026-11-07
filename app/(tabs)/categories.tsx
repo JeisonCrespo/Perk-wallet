@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Switch,
   Image,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -79,6 +80,15 @@ export default function SettingsAndCategoriesScreen() {
   const { isDark, toggleTheme, colors } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
+  const scrollRef = useRef<any>(null);
+
+  // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
+
   // Modales directos en Ajustes
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
@@ -87,6 +97,8 @@ export default function SettingsAndCategoriesScreen() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showRestoreJsonModal, setShowRestoreJsonModal] = useState(false);
+  const [showDriveEmailModal, setShowDriveEmailModal] = useState(false);
+  const [driveEmailInput, setDriveEmailInput] = useState('');
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -366,10 +378,26 @@ export default function SettingsAndCategoriesScreen() {
     await handleSaveReminderTime(h, m, formatted);
   };
 
-  const handleConnectDrive = async () => {
-    const targetEmail = userProfile.email || 'jeison@gmail.com';
-    await connectGoogleDrive(targetEmail);
-    Alert.alert('Google Drive Conectado', `Sesión iniciada con éxito en ${targetEmail}.`);
+  const handleOpenDriveConnect = () => {
+    setDriveEmailInput(
+      driveEmail ||
+      (userProfile.email && !userProfile.email.includes('ejemplo.com') ? userProfile.email : '')
+    );
+    setShowDriveEmailModal(true);
+  };
+
+  const handleSaveDriveEmail = async () => {
+    const clean = driveEmailInput.trim();
+    if (!clean) {
+      Alert.alert('Correo Requerido', 'Por favor ingresa tu cuenta de Google (Gmail).');
+      return;
+    }
+    await connectGoogleDrive(clean);
+    setShowDriveEmailModal(false);
+    Alert.alert(
+      'Google Drive Conectado',
+      `Tu cuenta ${clean} ha sido vinculada para tus respaldos.`
+    );
   };
 
   const handleDisconnectDrive = () => {
@@ -442,7 +470,7 @@ export default function SettingsAndCategoriesScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 1. Tarjeta Principal de Perfil (Con Foto e Iniciales) */}
         <View style={styles.profileCard}>
           <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.85}>
@@ -999,29 +1027,46 @@ export default function SettingsAndCategoriesScreen() {
                     }}
                   >
                     {isDriveConnected
-                      ? `Cuenta: ${driveEmail || userProfile.email || 'jeison@gmail.com'}`
-                      : 'Inicia sesión para respaldar en tu nube'}
+                      ? `Cuenta: ${driveEmail || 'Tu cuenta de Google'}`
+                      : 'Vincula tu cuenta real de Google para respaldar'}
                   </Text>
                 </View>
               </View>
 
               {isDriveConnected ? (
-                <TouchableOpacity
-                  style={styles.driveDisconnectBtn}
-                  onPress={handleDisconnectDrive}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.driveDisconnectBtnText}>Cerrar sesión de Google Drive</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={styles.driveConnectBtn}
+                    onPress={handleOpenDriveConnect}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.driveConnectBtnText}>Cambiar cuenta</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.driveDisconnectBtn}
+                    onPress={handleDisconnectDrive}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.driveDisconnectBtnText}>Cerrar sesión</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={styles.driveConnectBtn}
-                  onPress={handleConnectDrive}
+                  onPress={handleOpenDriveConnect}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.driveConnectBtnText}>Conectar con Google Drive</Text>
+                  <Text style={styles.driveConnectBtnText}>Conectar cuenta de Google</Text>
                 </TouchableOpacity>
               )}
+            </View>
+
+            {/* Banner explicativo sobre el guardado oficial en Google Drive */}
+            <View style={styles.driveInfoBanner}>
+              <Ionicons name="information-circle-outline" size={18} color={isDark ? '#34D399' : '#059669'} />
+              <Text style={styles.driveInfoBannerText}>
+                Al tocar 'Hacer Copia de Seguridad ahora', Android abre automáticamente Google Drive de tu teléfono para guardar el archivo en tu cuenta real y carpeta elegida sin permisos complejos.
+              </Text>
             </View>
 
             {/* Opción: Copia de Seguridad Automática al Iniciar y Salir */}
@@ -1084,6 +1129,45 @@ export default function SettingsAndCategoriesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* --- MODAL: VINCULAR CUENTA REAL DE GOOGLE DRIVE --- */}
+      <KeyboardSafeModal
+        visible={showDriveEmailModal}
+        animationType="slide"
+        onClose={() => setShowDriveEmailModal(false)}
+      >
+        <Text style={styles.modalHeading}>Vincular Cuenta de Google</Text>
+        <Text style={[styles.menuRowSub, { marginBottom: 12 }]}>
+          Escribe tu correo real de Google (Gmail) para asociarlo a tus respaldos automáticos y en la nube:
+        </Text>
+
+        <Text style={styles.inputLabelText}>Correo de Google (Gmail)</Text>
+        <TextInput
+          style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+          value={driveEmailInput}
+          onChangeText={setDriveEmailInput}
+          placeholder="ejemplo@gmail.com"
+          placeholderTextColor="#64748B"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity
+            style={styles.cancelBtnHalf}
+            onPress={() => setShowDriveEmailModal(false)}
+          >
+            <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.primaryBtnHalf}
+            onPress={handleSaveDriveEmail}
+          >
+            <Text style={styles.primaryBtnHalfText}>Vincular Cuenta</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardSafeModal>
 
       {/* --- MODAL: PEGAR JSON PARA RESTAURAR --- */}
       <KeyboardSafeModal
@@ -1663,6 +1747,24 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       color: '#FFFFFF',
       fontSize: 12,
       fontWeight: '700',
+    },
+    driveInfoBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? '#062B20' : '#ECFDF5',
+      borderRadius: 10,
+      padding: 10,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#0C4E3D' : '#A7F3D0',
+    },
+    driveInfoBannerText: {
+      flex: 1,
+      fontSize: 11,
+      color: isDark ? '#A7F3D0' : '#065F46',
+      lineHeight: 16,
+      fontWeight: '600',
     },
     fullWidthPrimaryBtn: {
       width: '100%',

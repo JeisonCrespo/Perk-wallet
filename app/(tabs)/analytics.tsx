@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TextInput,
   BackHandler,
 } from 'react-native';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../../src/context/FinanceContext';
 import { DonutChart } from '../../src/components/DonutChart';
@@ -33,7 +34,22 @@ export default function AnalyticsAndBudgetsScreen() {
     getCategoryBreakdown,
   } = useFinance();
 
-  const [viewMode, setViewMode] = useState<'budgets' | 'chart'>('chart');
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [viewMode, setViewMode] = useState<'budgets' | 'chart'>('budgets');
+  const scrollRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (params.tab === 'budgets' || params.tab === 'chart') {
+      setViewMode(params.tab);
+    }
+  }, [params.tab]);
+
+  // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
   const [selectedType, setSelectedType] = useState<'expense' | 'income'>('expense');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -269,7 +285,7 @@ export default function AnalyticsAndBudgetsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent}>
         {viewMode === 'budgets' ? (
           <>
             <View style={styles.infoBanner}>

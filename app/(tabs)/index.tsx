@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Switch,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFinance } from '../../src/context/FinanceContext';
@@ -54,6 +54,15 @@ export default function DashboardScreen() {
     hasCompletedOnboarding,
     setHasCompletedOnboarding,
   } = useFinance();
+
+  const scrollRef = useRef<any>(null);
+
+  // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
 
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -222,7 +231,7 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Encabezado Superior Continuo Estilo Mockup (Sin doble barra) */}
         <View style={[styles.topHeroWrapper, { paddingTop: Math.max(insets.top + 8, 38) }]}>
           {/* Fila del Perfil */}
@@ -418,7 +427,7 @@ export default function DashboardScreen() {
             </Text>
             <TouchableOpacity
               style={styles.promoExploreBtn}
-              onPress={() => router.push('/(tabs)/analytics')}
+              onPress={() => router.push({ pathname: '/(tabs)/analytics', params: { tab: 'budgets' } })}
             >
               <Text style={styles.promoExploreBtnText}>Ver Presupuesto ↗</Text>
             </TouchableOpacity>

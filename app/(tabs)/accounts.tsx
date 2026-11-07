@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../../src/context/FinanceContext';
 import {
@@ -52,6 +53,15 @@ export default function AccountsScreen() {
     importBankMovementsText,
     deleteAccount,
   } = useFinance();
+
+  const scrollRef = useRef<any>(null);
+
+  // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
+  useFocusEffect(
+    useCallback(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
 
   const [showUSBankModal, setShowUSBankModal] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
@@ -448,7 +458,7 @@ export default function AccountsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Resumen de separación de cuentas */}
         <View style={styles.summaryBanner}>
           <View style={styles.summaryCol}>
