@@ -696,33 +696,33 @@ export default function ControlScreen() {
             {sharedSubscriptions.length > 0 && (
               <View style={styles.sharedSummaryBanner}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <Ionicons name="people-circle" size={18} color="#C084FC" />
-                  <Text style={{ color: '#E9D5FF', fontSize: 13, fontWeight: '800' }}>
+                  <Ionicons name="people-circle" size={18} color={isDark ? '#C084FC' : '#7E22CE'} />
+                  <Text style={{ color: isDark ? '#E9D5FF' : '#581C87', fontSize: 13, fontWeight: '800' }}>
                     Resumen de Suscripciones Compartidas ({sharedSubscriptions.length})
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 6 }}>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: '#C4B5FD', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
+                    <Text style={{ color: isDark ? '#C4B5FD' : '#6B21A8', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
                       COBRO TOTAL
                     </Text>
-                    <Text style={{ color: '#F8FAFC', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
+                    <Text style={{ color: isDark ? '#F8FAFC' : '#1E1B4B', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
                       ${sharedStats.totalBilled.toFixed(2)}
                     </Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ color: '#C4B5FD', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
+                    <Text style={{ color: isDark ? '#C4B5FD' : '#6B21A8', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
                       TU PARTE REAL
                     </Text>
-                    <Text style={{ color: '#38BDF8', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
+                    <Text style={{ color: isDark ? '#38BDF8' : '#0369A1', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
                       ${sharedStats.myTotalRealCost.toFixed(2)}
                     </Text>
                   </View>
                   <View style={{ flex: 1.1, alignItems: 'flex-end', minWidth: 0 }}>
-                    <Text style={{ color: '#C4B5FD', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
+                    <Text style={{ color: isDark ? '#C4B5FD' : '#6B21A8', fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
                       POR COBRAR
                     </Text>
-                    <Text style={{ color: '#4ADE80', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
+                    <Text style={{ color: isDark ? '#4ADE80' : '#15803D', fontSize: 15, fontWeight: '800', marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>
                       +${sharedStats.pendingReimbursement.toFixed(2)}
                     </Text>
                   </View>
@@ -1058,7 +1058,7 @@ export default function ControlScreen() {
 
             {sortedDebts.length === 0 ? (
               <View style={styles.card}>
-                <Text style={{ color: '#F8FAFC', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
                   No tienes compras a cuotas o deudas registradas
                 </Text>
                 <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 6 }}>
@@ -1130,10 +1130,10 @@ export default function ControlScreen() {
                           <View
                             style={[
                               styles.freqBadge,
-                              { backgroundColor: debt.color + '30', borderWidth: 1, borderColor: debt.color },
+                              { backgroundColor: debt.color + '25', borderWidth: 1, borderColor: debt.color },
                             ]}
                           >
-                            <Text style={[styles.freqBadgeText, { color: '#F8FAFC' }]}>
+                            <Text style={[styles.freqBadgeText, { color: colors.text }]}>
                               {debt.platform}
                             </Text>
                           </View>
@@ -1494,7 +1494,7 @@ export default function ControlScreen() {
             trackColor={{ false: '#334155', true: '#7E22CE' }}
             thumbColor={editIsShared ? '#E9D5FF' : '#94A3B8'}
           />
-          <Text style={{ color: '#F8FAFC', fontSize: 13, fontWeight: '700' }}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>
             {editIsShared ? 'Sí, comparto esta suscripción' : 'No, la pago yo solo'}
           </Text>
         </View>

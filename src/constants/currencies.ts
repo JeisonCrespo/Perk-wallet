@@ -32,3 +32,4 @@ export const POPULAR_CURRENCIES: CurrencyOption[] = [
   { code: 'INR', symbol: '₹', name: 'Rupia India', flag: '🇮🇳' },
   { code: 'KRW', symbol: '₩', name: 'Won Surcoreano', flag: '🇰🇷' },
 ];
+

@@ -19,7 +19,6 @@ import { Transaction, TransactionType } from '../../src/types/finance';
 import { SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
 import { DateField } from '../../src/components/DatePickerModal';
-import { ProfileModal } from '../../src/components/ProfileModal';
 import { OnboardingView } from '../../src/components/OnboardingView';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
@@ -56,7 +55,6 @@ export default function DashboardScreen() {
     setHasCompletedOnboarding,
   } = useFinance();
 
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -231,7 +229,7 @@ export default function DashboardScreen() {
           <View style={styles.topProfileBar}>
             <TouchableOpacity
               style={styles.profileInfoRow}
-              onPress={() => setShowProfileModal(true)}
+              onPress={() => router.push('/(tabs)/categories')}
               activeOpacity={0.7}
             >
               <View style={styles.avatarCircle}>
@@ -280,7 +278,7 @@ export default function DashboardScreen() {
 
             <TouchableOpacity
               style={styles.currencyBadge}
-              onPress={() => setShowProfileModal(true)}
+              onPress={() => router.push('/(tabs)/categories')}
               activeOpacity={0.8}
             >
               <Text style={styles.currencyBadgeText}>{userProfile.currency || 'USD'} ▾</Text>
@@ -1533,13 +1531,6 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
-
-      {/* Modal de Perfil Completo Estilo Mockup */}
-      <ProfileModal
-        visible={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-        onOpenOnboarding={() => setShowOnboardingModal(true)}
-      />
 
       {/* Vista de Onboarding y Animación Inicial */}
       <OnboardingView

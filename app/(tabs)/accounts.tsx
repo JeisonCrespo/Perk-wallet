@@ -568,9 +568,9 @@ export default function AccountsScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             gap: 10,
-            backgroundColor: '#052E16',
+            backgroundColor: isDark ? '#052E16' : '#ECFDF5',
             borderWidth: 1,
-            borderColor: '#22C55E',
+            borderColor: isDark ? '#22C55E' : '#A7F3D0',
             borderRadius: 12,
             padding: 12,
             marginBottom: 14,
@@ -580,16 +580,16 @@ export default function AccountsScreen() {
             setShowSmartImportModal(true);
           }}
         >
-          <Ionicons name="flash" size={20} color="#4ADE80" />
+          <Ionicons name="flash" size={20} color={isDark ? '#4ADE80' : '#059669'} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#4ADE80', fontSize: 13, fontWeight: '800' }}>
+            <Text style={{ color: isDark ? '#4ADE80' : '#065F46', fontSize: 13, fontWeight: '800' }}>
               Importar de Google Billetera / Alertas / CSV
             </Text>
-            <Text style={{ color: '#86EFAC', fontSize: 11, marginTop: 1 }}>
+            <Text style={{ color: isDark ? '#86EFAC' : '#047857', fontSize: 11, marginTop: 1 }}>
               Pega notificaciones de Google Billetera, Wells Fargo, Chase, Truist, PayPal o Uber.
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#4ADE80" />
+          <Ionicons name="chevron-forward" size={18} color={isDark ? '#4ADE80' : '#059669'} />
         </TouchableOpacity>
 
         <Text style={styles.helperNote}>

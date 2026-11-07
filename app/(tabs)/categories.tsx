@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker';
 import { useFinance } from '../../src/context/FinanceContext';
 import { Category } from '../../src/types/finance';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
@@ -24,7 +25,8 @@ import {
   cancelDailyExpenseReminder,
 } from '../../src/services/notificationService';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
-import { ProfileModal } from '../../src/components/ProfileModal';
+import { OnboardingView } from '../../src/components/OnboardingView';
+import { POPULAR_CURRENCIES, CurrencyOption } from '../../src/constants/currencies';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 const COLOR_PALETTE = [
@@ -62,29 +64,50 @@ export default function SettingsAndCategoriesScreen() {
     recordDriveBackupTimestamp,
     userProfile,
     updateUserProfile,
+    securitySettings,
+    updateSecuritySettings,
+    logoutUser,
+    loginUser,
   } = useFinance();
 
   const { isDark, toggleTheme, colors } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
-  // Submodales para navegación limpia por click
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
-  const [showBackupOptionsModal, setShowBackupOptionsModal] = useState(false);
+  // Modales directos en Ajustes
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [showDailyReminderModal, setShowDailyReminderModal] = useState(false);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showRestoreJsonModal, setShowRestoreJsonModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+
+  // Estados de Edición de Perfil
+  const [nameInput, setNameInput] = useState(userProfile.name);
+  const [emailInput, setEmailInput] = useState(userProfile.email);
+  const [phoneInput, setPhoneInput] = useState(userProfile.phone || '');
+
+  // Estados de Moneda
+  const [currencySearch, setCurrencySearch] = useState('');
+
+  // Estados de Seguridad (PIN)
+  const [pinInput, setPinInput] = useState(securitySettings.pinCode || '');
+  const [pinEnabled, setPinEnabled] = useState(securitySettings.pinEnabled);
+  const [requirePinOnOpen, setRequirePinOnOpen] = useState(securitySettings.requirePinOnOpen);
 
   // Estados de Categorías
   const [tabType, setTabType] = useState<'expense' | 'income'>('expense');
   const [showCatEditModal, setShowCatEditModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [name, setName] = useState('');
+  const [catName, setCatName] = useState('');
   const [selectedColor, setSelectedColor] = useState(COLOR_PALETTE[0]);
   const [selectedIcon, setSelectedIcon] = useState(GENERAL_ICONS[0].icon);
   const [iconSearch, setIconSearch] = useState('');
 
   // Estados de Copia de Seguridad
-  const [showRestoreJsonModal, setShowRestoreJsonModal] = useState(false);
   const [backupJsonInput, setBackupJsonInput] = useState('');
 
   // Estados de Recordatorio Diario
@@ -101,6 +124,10 @@ export default function SettingsAndCategoriesScreen() {
     userProfile.dailyReminderTime ? userProfile.dailyReminderTime.split(':')[1] : '00'
   );
 
+  // Estados de Login
+  const [loginNameInput, setLoginNameInput] = useState('');
+  const [loginEmailInput, setLoginEmailInput] = useState('');
+
   const filteredCategories = categories.filter((c) => c.type === tabType);
 
   const filteredIcons = GENERAL_ICONS.filter(
@@ -110,9 +137,98 @@ export default function SettingsAndCategoriesScreen() {
       item.group.toLowerCase().includes(iconSearch.toLowerCase())
   );
 
+  const filteredCurrencies = POPULAR_CURRENCIES.filter(
+    (c) =>
+      c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
+      c.name.toLowerCase().includes(currencySearch.toLowerCase())
+  );
+
+  // Seleccionar Foto de Perfil desde Galería
+  const handlePickAvatar = async () => {
+    Alert.alert(
+      'Foto de Perfil',
+      'Elige una opción para tu avatar:',
+      [
+        {
+          text: 'Elegir de Galería',
+          onPress: async () => {
+            try {
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                const pickedUri = res.assets[0].uri;
+                await updateUserProfile({ avatarUri: pickedUri });
+              }
+            } catch {
+              Alert.alert('Error', 'No se pudo acceder a las fotos.');
+            }
+          },
+        },
+        ...(userProfile.avatarUri
+          ? [
+              {
+                text: 'Quitar Foto',
+                style: 'destructive' as const,
+                onPress: async () => {
+                  await updateUserProfile({ avatarUri: '' });
+                },
+              },
+            ]
+          : []),
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleOpenEditProfile = () => {
+    setNameInput(userProfile.name);
+    setEmailInput(userProfile.email);
+    setPhoneInput(userProfile.phone || '');
+    setShowEditProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!nameInput.trim()) {
+      Alert.alert('Nombre requerido', 'Por favor ingresa tu nombre.');
+      return;
+    }
+    await updateUserProfile({
+      name: nameInput.trim(),
+      email: emailInput.trim(),
+      phone: phoneInput.trim(),
+    });
+    setShowEditProfileModal(false);
+  };
+
+  const handleOpenSecurity = () => {
+    setPinInput(securitySettings.pinCode || '');
+    setPinEnabled(securitySettings.pinEnabled);
+    setRequirePinOnOpen(securitySettings.requirePinOnOpen);
+    setShowSecurityModal(true);
+  };
+
+  const handleSaveSecurity = async () => {
+    if (pinEnabled && pinInput.length < 4) {
+      Alert.alert('PIN inválido', 'El PIN de seguridad debe tener al menos 4 dígitos.');
+      return;
+    }
+    await updateSecuritySettings({
+      pinEnabled,
+      pinCode: pinEnabled ? pinInput : '',
+      requirePinOnOpen: pinEnabled ? requirePinOnOpen : false,
+    });
+    setShowSecurityModal(false);
+    Alert.alert('Seguridad actualizada', 'Tus preferencias de PIN han sido guardadas.');
+  };
+
   const handleOpenCatCreate = () => {
     setEditingCategory(null);
-    setName('');
+    setCatName('');
     setSelectedColor(COLOR_PALETTE[0]);
     setSelectedIcon(GENERAL_ICONS[0].icon);
     setIconSearch('');
@@ -121,7 +237,7 @@ export default function SettingsAndCategoriesScreen() {
 
   const handleOpenCatEdit = (cat: Category) => {
     setEditingCategory(cat);
-    setName(cat.name);
+    setCatName(cat.name);
     setSelectedColor(cat.color);
     setSelectedIcon(cat.icon);
     setIconSearch('');
@@ -129,23 +245,23 @@ export default function SettingsAndCategoriesScreen() {
   };
 
   const handleSaveCategory = async () => {
-    if (!name.trim()) return;
+    if (!catName.trim()) return;
     if (editingCategory) {
       await updateCategory(editingCategory.id, {
-        name: name.trim(),
+        name: catName.trim(),
         color: selectedColor,
         icon: selectedIcon,
       });
       setEditingCategory(null);
     } else {
       await addCategory({
-        name: name.trim(),
+        name: catName.trim(),
         type: tabType,
         color: selectedColor,
         icon: selectedIcon,
       });
     }
-    setName('');
+    setCatName('');
     setIconSearch('');
     setShowCatEditModal(false);
   };
@@ -192,7 +308,7 @@ export default function SettingsAndCategoriesScreen() {
       await importBackupJson(backupJsonInput);
       setBackupJsonInput('');
       setShowRestoreJsonModal(false);
-      setShowBackupOptionsModal(false);
+      setShowBackupModal(false);
       Alert.alert(
         'Respaldo Restaurado',
         'Tus cuentas, movimientos, préstamos, metas y categorías fueron restaurados con éxito.'
@@ -262,45 +378,118 @@ export default function SettingsAndCategoriesScreen() {
     );
   };
 
+  const handleToggleLogout = () => {
+    if (userProfile.isLogged) {
+      Alert.alert(
+        'Cerrar sesión',
+        '¿Deseas cerrar sesión? Todos tus datos bancarios y registros se mantendrán guardados en este dispositivo.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Cerrar sesión',
+            style: 'destructive',
+            onPress: async () => {
+              await logoutUser();
+            },
+          },
+        ]
+      );
+    } else {
+      setLoginNameInput('');
+      setLoginEmailInput('');
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleLoginSubmit = async () => {
+    if (!loginNameInput.trim()) {
+      Alert.alert('Nombre requerido', 'Por favor ingresa tu nombre.');
+      return;
+    }
+    await loginUser(loginNameInput, loginEmailInput);
+    setShowLoginModal(false);
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* 1. Tarjeta Principal de Perfil (Acceso con Click) */}
-        <TouchableOpacity
-          style={styles.profileCard}
-          onPress={() => setShowProfileModal(true)}
-          activeOpacity={0.8}
-        >
-          {userProfile.avatarUri ? (
-            <Image source={{ uri: userProfile.avatarUri }} style={styles.profileAvatarImg} />
-          ) : (
-            <View style={styles.profileAvatarBox}>
-              <Text style={styles.profileAvatarText}>
-                {(userProfile.name || 'J').charAt(0).toUpperCase()}
-              </Text>
+        {/* 1. Tarjeta Principal de Perfil (Con Foto e Iniciales) */}
+        <View style={styles.profileCard}>
+          <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.85}>
+            {userProfile.avatarUri ? (
+              <Image source={{ uri: userProfile.avatarUri }} style={styles.profileAvatarImg} />
+            ) : (
+              <View style={styles.profileAvatarBox}>
+                <Text style={styles.profileAvatarText}>
+                  {(userProfile.name || 'J').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.cameraBadge}>
+              <Ionicons name="camera" size={12} color="#FFFFFF" />
             </View>
-          )}
-          <View style={{ flex: 1 }}>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={{ flex: 1 }} onPress={handleOpenEditProfile} activeOpacity={0.7}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.profileName}>{userProfile.name || 'Your Name'}</Text>
+              <Text style={styles.profileName}>{userProfile.name || 'Tu Nombre'}</Text>
               <View style={styles.profileBadge}>
                 <Text style={styles.profileBadgeText}>
-                  {userProfile.accountType || 'Personal'} • {userProfile.currency || 'USD'}
+                  {userProfile.accountType || 'Personal'}
                 </Text>
               </View>
             </View>
-            <Text style={styles.profileEmail}>{userProfile.email || 'your.email@example.com'}</Text>
-            <Text style={styles.profileHint}>
-              Foto, moneda, información personal y seguridad PIN ➔
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
+            <Text style={styles.profileEmail}>{userProfile.email || 'tu.correo@ejemplo.com'}</Text>
+            <Text style={styles.profileHint}>Toca para editar nombre y correo ✎</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Grupo 1: Preferencias y Notificaciones */}
-        <Text style={styles.sectionHeaderTitle}>PREFERENCIAS Y NOTIFICACIONES</Text>
+        {/* Grupo 1: Moneda y Seguridad */}
+        <Text style={styles.sectionHeaderTitle}>CUENTA Y SEGURIDAD</Text>
         <View style={styles.menuBox}>
-          {/* Alternar Tema Directo (Sin duplicados) */}
+          {/* Moneda Principal */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => setShowCurrencyModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
+              <Ionicons name="cash-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowTitle}>Moneda Principal</Text>
+              <Text style={styles.menuRowSub}>
+                {userProfile.currency || 'USD'} • Elige entre 25 monedas
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          {/* Seguridad y Bloqueo PIN */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={handleOpenSecurity}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowTitle}>Seguridad y Bloqueo PIN</Text>
+              <Text style={styles.menuRowSub}>
+                {securitySettings.pinEnabled ? 'PIN activado' : 'PIN desactivado'} • Cifrado SQLite local
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Grupo 2: Preferencias de la App */}
+        <Text style={styles.sectionHeaderTitle}>PREFERENCIAS</Text>
+        <View style={styles.menuBox}>
+          {/* Modo Oscuro */}
           <View style={styles.menuRow}>
             <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
               <Ionicons name={isDark ? 'moon' : 'sunny'} size={18} color={isDark ? '#34D399' : '#064E3B'} />
@@ -373,10 +562,10 @@ export default function SettingsAndCategoriesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Grupo 2: Gestión de Finanzas y Copias */}
-        <Text style={styles.sectionHeaderTitle}>GESTIÓN Y COPIAS DE SEGURIDAD</Text>
+        {/* Grupo 3: Datos, Categorías y Respaldos */}
+        <Text style={styles.sectionHeaderTitle}>GESTIÓN DE DATOS Y RESPALDOS</Text>
         <View style={styles.menuBox}>
-          {/* Categorías (Ahora en submodal limpio por click) */}
+          {/* Categorías */}
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => setShowCategoriesModal(true)}
@@ -396,10 +585,10 @@ export default function SettingsAndCategoriesScreen() {
 
           <View style={styles.menuDivider} />
 
-          {/* Copia de Seguridad Google Drive / JSON */}
+          {/* Copia de Seguridad */}
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={() => setShowBackupOptionsModal(true)}
+            onPress={() => setShowBackupModal(true)}
             activeOpacity={0.7}
           >
             <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
@@ -410,8 +599,26 @@ export default function SettingsAndCategoriesScreen() {
               <Text style={styles.menuRowSub}>
                 {lastDriveBackupAt
                   ? `Último respaldo: ${lastDriveBackupAt}`
-                  : 'Exportar o importar archivo .json'}
+                  : 'Exportar a Drive o restaurar archivo .json'}
               </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          {/* Ver Bienvenida / Get Started */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => setShowOnboardingModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
+              <Ionicons name="rocket-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowTitle}>Ver Bienvenida (Get Started)</Text>
+              <Text style={styles.menuRowSub}>Replay de la animación y presentación</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
@@ -425,15 +632,48 @@ export default function SettingsAndCategoriesScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.menuRowTitle, { color: '#DC2626' }]}>Empezar desde Cero ($0.00)</Text>
-              <Text style={styles.menuRowSub}>Borrar cuentas de prueba para ingresar tus datos reales</Text>
+              <Text style={styles.menuRowSub}>Borrar movimientos de prueba para ingresar datos reales</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
-        {/* Grupo 3: Información */}
-        <Text style={styles.sectionHeaderTitle}>ACERCA DE LA APLICACIÓN</Text>
+        {/* Grupo 4: Sesión e Info */}
+        <Text style={styles.sectionHeaderTitle}>SESIÓN E INFORMACIÓN</Text>
         <View style={styles.menuBox}>
+          {/* Cerrar / Iniciar Sesión */}
+          <TouchableOpacity style={styles.menuRow} onPress={handleToggleLogout} activeOpacity={0.7}>
+            <View
+              style={[
+                styles.iconPill,
+                { backgroundColor: userProfile.isLogged ? '#FEE2E2' : '#DCFCE7' },
+              ]}
+            >
+              <Ionicons
+                name={userProfile.isLogged ? 'log-out-outline' : 'log-in-outline'}
+                size={18}
+                color={userProfile.isLogged ? '#EF4444' : '#059669'}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.menuRowTitle,
+                  { color: userProfile.isLogged ? '#EF4444' : '#059669' },
+                ]}
+              >
+                {userProfile.isLogged ? 'Cerrar Sesión' : 'Iniciar Sesión'}
+              </Text>
+              <Text style={styles.menuRowSub}>
+                {userProfile.isLogged ? 'Tus datos bancarios se mantienen guardados' : 'Ingresa tu nombre y correo'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          {/* Acerca de */}
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => setShowAboutModal(true)}
@@ -451,68 +691,198 @@ export default function SettingsAndCategoriesScreen() {
         </View>
       </ScrollView>
 
-      {/* --- MODAL: GESTOR DE CATEGORÍAS (ABIERTO POR CLICK) --- */}
+      {/* --- MODAL: EDITAR PERFIL (NOMBRE, CORREO, TELÉFONO) --- */}
       <Modal
-        visible={showCategoriesModal}
+        visible={showEditProfileModal}
         animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowCategoriesModal(false)}
+        transparent
+        onRequestClose={() => setShowEditProfileModal(false)}
       >
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-          <View style={[styles.modalHeaderBar, { backgroundColor: isDark ? '#062B20' : '#083E31' }]}>
-            <TouchableOpacity onPress={() => setShowCategoriesModal(false)}>
-              <Ionicons name="chevron-down" size={26} color="#F0FDF4" />
-            </TouchableOpacity>
-            <Text style={styles.modalHeaderBarTitle}>Categorías</Text>
-            <TouchableOpacity style={styles.addCatPill} onPress={handleOpenCatCreate}>
-              <Ionicons name="add" size={16} color="#064E3B" />
-              <Text style={styles.addCatPillText}>Nueva</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={styles.modalHeading}>Editar Perfil</Text>
 
-          {/* Segment Selector: Gastos vs Ingresos */}
-          <View style={styles.segmentContainer}>
-            <TouchableOpacity
-              style={[styles.segmentTab, tabType === 'expense' && styles.segmentTabActive]}
-              onPress={() => setTabType('expense')}
-            >
-              <Text style={[styles.segmentTabText, tabType === 'expense' && styles.segmentTabTextActive]}>
-                Gastos ({categories.filter((c) => c.type === 'expense').length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentTab, tabType === 'income' && styles.segmentTabActive]}
-              onPress={() => setTabType('income')}
-            >
-              <Text style={[styles.segmentTabText, tabType === 'income' && styles.segmentTabTextActive]}>
-                Ingresos ({categories.filter((c) => c.type === 'income').length})
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <Text style={styles.inputLabelText}>Nombre Completo</Text>
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={nameInput}
+              onChangeText={setNameInput}
+              placeholder="Tu nombre"
+              placeholderTextColor="#64748B"
+            />
 
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-            {filteredCategories.map((cat) => (
-              <View key={cat.id} style={styles.catCard}>
-                <View style={styles.catTopRow}>
-                  <SmartIcon iconName={cat.icon} color={cat.color} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.catName}>{cat.name}</Text>
-                    <Text style={styles.catSub}>{cat.isCustom ? 'Personalizada' : 'Predeterminada'}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                    <TouchableOpacity onPress={() => handleOpenCatEdit(cat)}>
-                      <Ionicons name="create-outline" size={18} color={isDark ? '#34D399' : '#059669'} />
-                    </TouchableOpacity>
-                    {cat.isCustom && (
-                      <TouchableOpacity onPress={() => deleteCategory(cat.id)}>
-                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                      </TouchableOpacity>
+            <Text style={[styles.inputLabelText, { marginTop: 12 }]}>Correo Electrónico</Text>
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={emailInput}
+              onChangeText={setEmailInput}
+              placeholder="correo@ejemplo.com"
+              placeholderTextColor="#64748B"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Text style={[styles.inputLabelText, { marginTop: 12 }]}>Teléfono (Opcional)</Text>
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+              placeholder="+1 (555) 000-0000"
+              placeholderTextColor="#64748B"
+              keyboardType="phone-pad"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={styles.cancelBtnHalf}
+                onPress={() => setShowEditProfileModal(false)}
+              >
+                <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtnHalf} onPress={handleSaveProfile}>
+                <Text style={styles.primaryBtnHalfText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- MODAL: CURRENCY SELECTOR (25 MONEDAS POPULARES CON BUSCADOR) --- */}
+      <Modal
+        visible={showCurrencyModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCurrencyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card, maxHeight: '82%' }]}>
+            <Text style={styles.modalHeading}>Elegir Moneda Principal</Text>
+            <Text style={[styles.menuRowSub, { marginBottom: 12 }]}>
+              Selecciona la divisa para tus balances y cálculos:
+            </Text>
+
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text, marginBottom: 12 }]}
+              placeholder="Buscar país o divisa (USD, EUR, Peso...)"
+              placeholderTextColor="#64748B"
+              value={currencySearch}
+              onChangeText={setCurrencySearch}
+            />
+
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {filteredCurrencies.map((item: CurrencyOption) => {
+                const isSelected = (userProfile.currency || 'USD') === item.code;
+                return (
+                  <TouchableOpacity
+                    key={item.code}
+                    style={[
+                      styles.currencyRow,
+                      isSelected && {
+                        backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+                        borderColor: '#34D399',
+                        borderWidth: 1,
+                      },
+                    ]}
+                    onPress={async () => {
+                      await updateUserProfile({ currency: item.code });
+                      setShowCurrencyModal(false);
+                      Alert.alert('Moneda Actualizada', `Tu moneda principal ahora es ${item.code} (${item.symbol}).`);
+                    }}
+                  >
+                    <Text style={{ fontSize: 24, marginRight: 10 }}>{item.flag}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.currencyRowCode, { color: colors.text }]}>
+                        {item.code} ({item.symbol})
+                      </Text>
+                      <Text style={[styles.currencyRowName, { color: colors.textMuted }]}>
+                        {item.name}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={22} color="#10B981" />
                     )}
-                  </View>
-                </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.cancelBtnFull, { marginTop: 14 }]}
+              onPress={() => setShowCurrencyModal(false)}
+            >
+              <Text style={styles.cancelBtnFullText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- MODAL: SEGURIDAD Y BLOQUEO PIN --- */}
+      <Modal
+        visible={showSecurityModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowSecurityModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={styles.modalHeading}>Seguridad y Bloqueo</Text>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={styles.menuRowTitle}>Activar PIN de 4 dígitos</Text>
+                <Text style={styles.menuRowSub}>Protege el acceso a tus finanzas</Text>
               </View>
-            ))}
-          </ScrollView>
+              <Switch
+                value={pinEnabled}
+                onValueChange={setPinEnabled}
+                trackColor={{ false: '#334155', true: '#34D399' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            {pinEnabled && (
+              <>
+                <Text style={[styles.inputLabelText, { marginTop: 12 }]}>
+                  Código PIN (4 o 6 dígitos numéricos)
+                </Text>
+                <TextInput
+                  style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+                  value={pinInput}
+                  onChangeText={setPinInput}
+                  placeholder="****"
+                  placeholderTextColor="#64748B"
+                  keyboardType="numeric"
+                  maxLength={6}
+                  secureTextEntry
+                />
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={styles.menuRowTitle}>Requerir al abrir la app</Text>
+                    <Text style={styles.menuRowSub}>Pedir el PIN cada vez que inicies la app</Text>
+                  </View>
+                  <Switch
+                    value={requirePinOnOpen}
+                    onValueChange={setRequirePinOnOpen}
+                    trackColor={{ false: '#334155', true: '#34D399' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={styles.cancelBtnHalf}
+                onPress={() => setShowSecurityModal(false)}
+              >
+                <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtnHalf} onPress={handleSaveSecurity}>
+                <Text style={styles.primaryBtnHalfText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -602,47 +972,54 @@ export default function SettingsAndCategoriesScreen() {
         </View>
       </Modal>
 
-      {/* --- MODAL: OPCIONES DE COPIA DE SEGURIDAD (GOOGLE DRIVE & JSON) --- */}
+      {/* --- MODAL: OPCIONES DE COPIA DE SEGURIDAD (CORREGIDO PARA VERSE COMPLETO) --- */}
       <Modal
-        visible={showBackupOptionsModal}
+        visible={showBackupModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowBackupOptionsModal(false)}
+        onRequestClose={() => setShowBackupModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
             <Text style={styles.modalHeading}>Copia de Seguridad y Respaldo</Text>
             <Text style={[styles.menuRowSub, { marginBottom: 14 }]}>
-              Genera un archivo seguro .json con todas tus cuentas, movimientos, préstamos y metas.
+              Guarda tus movimientos en Google Drive o restaura un respaldo en archivo .json.
             </Text>
 
             {lastDriveBackupAt && (
-              <Text style={styles.lastBackupPill}>
-                ✓ Último respaldo guardado: {lastDriveBackupAt}
-              </Text>
+              <View style={styles.lastBackupBox}>
+                <Text style={styles.lastBackupPill}>
+                  ✓ Último respaldo guardado: {lastDriveBackupAt}
+                </Text>
+              </View>
             )}
 
+            {/* Botón 1: Guardar en Google Drive */}
             <TouchableOpacity
-              style={styles.actionBtnPrimary}
+              style={styles.fullWidthPrimaryBtn}
               onPress={handleBackupToGoogleDrive}
             >
-              <Ionicons name="cloud-upload-outline" size={18} color="#064E3B" />
-              <Text style={styles.actionBtnPrimaryText}>Guardar en Google Drive</Text>
+              <Ionicons name="cloud-upload" size={18} color="#064E3B" />
+              <Text style={styles.fullWidthPrimaryBtnText}>Guardar en Google Drive</Text>
             </TouchableOpacity>
 
+            {/* Botón 2: Restaurar Respaldo desde JSON */}
             <TouchableOpacity
-              style={[styles.actionBtnSecondary, { marginTop: 10 }]}
-              onPress={() => setShowRestoreJsonModal(true)}
+              style={styles.fullWidthSecondaryBtn}
+              onPress={() => {
+                setShowBackupModal(false);
+                setShowRestoreJsonModal(true);
+              }}
             >
               <Ionicons name="cloud-download-outline" size={18} color={colors.text} />
-              <Text style={[styles.actionBtnSecondaryText, { color: colors.text }]}>
+              <Text style={[styles.fullWidthSecondaryBtnText, { color: colors.text }]}>
                 Restaurar Respaldo (.json)
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.cancelBtnFull, { marginTop: 14 }]}
-              onPress={() => setShowBackupOptionsModal(false)}
+              onPress={() => setShowBackupModal(false)}
             >
               <Text style={styles.cancelBtnFullText}>Cerrar</Text>
             </TouchableOpacity>
@@ -671,16 +1048,81 @@ export default function SettingsAndCategoriesScreen() {
         />
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
           <TouchableOpacity
-            style={styles.cancelBtnFull}
+            style={styles.cancelBtnHalf}
             onPress={() => setShowRestoreJsonModal(false)}
           >
-            <Text style={styles.cancelBtnFullText}>Cancelar</Text>
+            <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtnPrimary} onPress={handleRestoreBackup}>
-            <Text style={styles.actionBtnPrimaryText}>Restaurar Ahora</Text>
+          <TouchableOpacity style={styles.primaryBtnHalf} onPress={handleRestoreBackup}>
+            <Text style={styles.primaryBtnHalfText}>Restaurar Ahora</Text>
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
+
+      {/* --- MODAL: GESTOR DE CATEGORÍAS (ABIERTO POR CLICK) --- */}
+      <Modal
+        visible={showCategoriesModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowCategoriesModal(false)}
+      >
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeaderBar, { backgroundColor: isDark ? '#062B20' : '#083E31' }]}>
+            <TouchableOpacity onPress={() => setShowCategoriesModal(false)}>
+              <Ionicons name="chevron-down" size={26} color="#F0FDF4" />
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderBarTitle}>Categorías</Text>
+            <TouchableOpacity style={styles.addCatPill} onPress={handleOpenCatCreate}>
+              <Ionicons name="add" size={16} color="#064E3B" />
+              <Text style={styles.addCatPillText}>Nueva</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Segment Selector: Gastos vs Ingresos */}
+          <View style={styles.segmentContainer}>
+            <TouchableOpacity
+              style={[styles.segmentTab, tabType === 'expense' && styles.segmentTabActive]}
+              onPress={() => setTabType('expense')}
+            >
+              <Text style={[styles.segmentTabText, tabType === 'expense' && styles.segmentTabTextActive]}>
+                Gastos ({categories.filter((c) => c.type === 'expense').length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.segmentTab, tabType === 'income' && styles.segmentTabActive]}
+              onPress={() => setTabType('income')}
+            >
+              <Text style={[styles.segmentTabText, tabType === 'income' && styles.segmentTabTextActive]}>
+                Ingresos ({categories.filter((c) => c.type === 'income').length})
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            {filteredCategories.map((cat) => (
+              <View key={cat.id} style={styles.catCard}>
+                <View style={styles.catTopRow}>
+                  <SmartIcon iconName={cat.icon} color={cat.color} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.catName}>{cat.name}</Text>
+                    <Text style={styles.catSub}>{cat.isCustom ? 'Personalizada' : 'Predeterminada'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <TouchableOpacity onPress={() => handleOpenCatEdit(cat)}>
+                      <Ionicons name="create-outline" size={18} color={isDark ? '#34D399' : '#059669'} />
+                    </TouchableOpacity>
+                    {cat.isCustom && (
+                      <TouchableOpacity onPress={() => deleteCategory(cat.id)}>
+                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* --- MODAL: EDITAR / CREAR CATEGORÍA --- */}
       <KeyboardSafeModal
@@ -697,8 +1139,8 @@ export default function SettingsAndCategoriesScreen() {
           style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
           placeholder="Ej. Cine, Ropa, Gym..."
           placeholderTextColor="#64748B"
-          value={name}
-          onChangeText={setName}
+          value={catName}
+          onChangeText={setCatName}
         />
 
         <Text style={[styles.inputLabelText, { marginTop: 12 }]}>Color</Text>
@@ -742,16 +1184,65 @@ export default function SettingsAndCategoriesScreen() {
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
           <TouchableOpacity
-            style={styles.cancelBtnFull}
+            style={styles.cancelBtnHalf}
             onPress={() => setShowCatEditModal(false)}
           >
-            <Text style={styles.cancelBtnFullText}>Cancelar</Text>
+            <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtnPrimary} onPress={handleSaveCategory}>
-            <Text style={styles.actionBtnPrimaryText}>Guardar</Text>
+          <TouchableOpacity style={styles.primaryBtnHalf} onPress={handleSaveCategory}>
+            <Text style={styles.primaryBtnHalfText}>Guardar</Text>
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
+
+      {/* --- MODAL: INICIAR SESIÓN --- */}
+      <Modal
+        visible={showLoginModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowLoginModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+            <Text style={styles.modalHeading}>Iniciar Sesión</Text>
+            <Text style={[styles.menuRowSub, { marginBottom: 14 }]}>
+              Ingresa tus datos para identificarte en tu app:
+            </Text>
+
+            <Text style={styles.inputLabelText}>Nombre</Text>
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={loginNameInput}
+              onChangeText={setLoginNameInput}
+              placeholder="Ej. Jeison"
+              placeholderTextColor="#64748B"
+            />
+
+            <Text style={[styles.inputLabelText, { marginTop: 12 }]}>Correo</Text>
+            <TextInput
+              style={[styles.textInputFull, { backgroundColor: colors.inputBg, color: colors.text }]}
+              value={loginEmailInput}
+              onChangeText={setLoginEmailInput}
+              placeholder="Ej. jeison@ejemplo.com"
+              placeholderTextColor="#64748B"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={styles.cancelBtnHalf}
+                onPress={() => setShowLoginModal(false)}
+              >
+                <Text style={styles.cancelBtnHalfText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtnHalf} onPress={handleLoginSubmit}>
+                <Text style={styles.primaryBtnHalfText}>Entrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* --- MODAL: ACERCA DE LA APP --- */}
       <Modal
@@ -773,19 +1264,19 @@ export default function SettingsAndCategoriesScreen() {
               • Manejo inteligente de ahorros propios y dinero ajeno
             </Text>
             <TouchableOpacity
-              style={styles.actionBtnPrimary}
+              style={styles.fullWidthPrimaryBtn}
               onPress={() => setShowAboutModal(false)}
             >
-              <Text style={styles.actionBtnPrimaryText}>Entendido</Text>
+              <Text style={styles.fullWidthPrimaryBtnText}>Entendido</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Modal de Perfil Completo */}
-      <ProfileModal
-        visible={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
+      {/* Onboarding View (Replay de bienvenida) */}
+      <OnboardingView
+        visible={showOnboardingModal}
+        onFinish={() => setShowOnboardingModal(false)}
       />
     </View>
   );
@@ -807,16 +1298,16 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       gap: 12,
     },
     profileAvatarImg: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
       borderWidth: 2,
       borderColor: '#34D399',
     },
     profileAvatarBox: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 50,
+      height: 50,
+      borderRadius: 25,
       backgroundColor: '#A7F3D0',
       alignItems: 'center',
       justifyContent: 'center',
@@ -825,8 +1316,21 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     },
     profileAvatarText: {
       color: '#064E3B',
-      fontSize: 20,
+      fontSize: 22,
       fontWeight: '800',
+    },
+    cameraBadge: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: '#10B981',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#FFFFFF',
     },
     profileName: {
       color: colors.text,
@@ -899,6 +1403,22 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    currencyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      marginBottom: 4,
+    },
+    currencyRowCode: {
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    currencyRowName: {
+      fontSize: 12,
+      marginTop: 1,
     },
     modalHeaderBar: {
       flexDirection: 'row',
@@ -1040,44 +1560,49 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       fontWeight: '800',
       fontSize: 14,
     },
+    lastBackupBox: {
+      marginBottom: 14,
+    },
     lastBackupPill: {
       color: '#10B981',
       fontSize: 12,
       fontWeight: '700',
-      marginBottom: 14,
     },
-    actionBtnPrimary: {
+    fullWidthPrimaryBtn: {
+      width: '100%',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
+      gap: 8,
       backgroundColor: '#A7F3D0',
-      paddingVertical: 12,
+      paddingVertical: 14,
       borderRadius: 12,
-      flex: 1,
+      marginBottom: 10,
     },
-    actionBtnPrimaryText: {
+    fullWidthPrimaryBtnText: {
       color: '#064E3B',
       fontWeight: '800',
       fontSize: 14,
     },
-    actionBtnSecondary: {
+    fullWidthSecondaryBtn: {
+      width: '100%',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 6,
+      gap: 8,
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.cardBorder,
-      paddingVertical: 12,
+      paddingVertical: 14,
       borderRadius: 12,
+      marginBottom: 6,
     },
-    actionBtnSecondaryText: {
+    fullWidthSecondaryBtnText: {
       fontWeight: '700',
       fontSize: 14,
     },
     cancelBtnFull: {
-      flex: 1,
+      width: '100%',
       paddingVertical: 12,
       borderRadius: 12,
       alignItems: 'center',
@@ -1086,6 +1611,30 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     cancelBtnFullText: {
       color: colors.textMuted,
       fontWeight: '700',
+      fontSize: 14,
+    },
+    cancelBtnHalf: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+    },
+    cancelBtnHalfText: {
+      color: colors.textMuted,
+      fontWeight: '700',
+      fontSize: 14,
+    },
+    primaryBtnHalf: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: '#A7F3D0',
+      alignItems: 'center',
+    },
+    primaryBtnHalfText: {
+      color: '#064E3B',
+      fontWeight: '800',
       fontSize: 14,
     },
     jsonInput: {
