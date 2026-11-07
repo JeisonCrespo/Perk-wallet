@@ -364,7 +364,7 @@ export default function DashboardScreen() {
           </View>
 
           {/* Desglose de cuentas separadas / dinero ajeno */}
-          {accounts.some((a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName)) && (
+          {accounts.some((a) => isOtherPersonAccount(a)) && (
             <View style={styles.separatedBoxInHero}>
               <TouchableOpacity
                 onPress={toggleHideOtherMoney}
@@ -396,7 +396,7 @@ export default function DashboardScreen() {
               {!hideOtherMoney && (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                   {accounts
-                    .filter((a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName))
+                    .filter((a) => isOtherPersonAccount(a))
                     .map((sep) => (
                       <View key={sep.id} style={styles.separatedPill}>
                         <Text style={styles.separatedPillText} numberOfLines={1} ellipsizeMode="tail">

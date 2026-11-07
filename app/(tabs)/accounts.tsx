@@ -115,19 +115,17 @@ export default function AccountsScreen() {
 
   // Separar cuentas mías vs cuentas ajenas / separadas
   const myAccounts = useMemo(() => {
-    return accounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
+    return accounts.filter((a) => !isOtherPersonAccount(a));
   }, [accounts, isOtherPersonAccount]);
 
   const otherAccounts = useMemo(() => {
-    return accounts.filter((a) => isOtherPersonAccount(a) || !a.includeInTotal);
+    return accounts.filter((a) => isOtherPersonAccount(a));
   }, [accounts, isOtherPersonAccount]);
 
-  // Cuentas separadas de terceros o con dueño específico
+  // Cuentas separadas de terceros o dinero ajeno exclusivamente
   const separatedAccounts = useMemo(() => {
-    return accounts.filter(
-      (a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName?.trim())
-    );
-  }, [accounts]);
+    return accounts.filter((a) => isOtherPersonAccount(a));
+  }, [accounts, isOtherPersonAccount]);
 
   const handleSelectUSBankTemplate = (bank: USBankTemplate, typeOverride?: AccountType) => {
     const targetType = typeOverride || usBankAccountType;
@@ -552,7 +550,7 @@ export default function AccountsScreen() {
             }}
           >
             <Ionicons name="add-circle-outline" size={18} color="#064E3B" />
-            <Text style={styles.plaidConnectBtnText} numberOfLines={1}>+ Agregar Mi Cuenta</Text>
+            <Text style={styles.plaidConnectBtnText} numberOfLines={1}>Agregar Banco o Cuenta</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1079,9 +1077,9 @@ export default function AccountsScreen() {
         animationType="slide"
         onClose={() => setShowUSBankModal(false)}
       >
-        <Text style={styles.modalTitle}>Agregar Mi Cuenta</Text>
+        <Text style={styles.modalTitle}>Agregar Banco o Cuenta</Text>
         <Text style={styles.modalSub}>
-          Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, etc.) e ingresa tu saldo actual para sumarlo a tu dinero disponible.
+          Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, etc.) e ingresa tu saldo actual.
         </Text>
 
         <Text style={styles.inputLabel}>1. Selecciona tu Banco o Billetera</Text>
@@ -1307,7 +1305,7 @@ export default function AccountsScreen() {
         >
           <Ionicons name="shield-checkmark-outline" size={18} color="#FFF" />
           <Text style={[styles.realPlaidBtnText, { color: '#FFF' }]}>
-            Guardar Mi Cuenta ({selectedBankTemplate.shortName})
+            Guardar Cuenta ({selectedBankTemplate.shortName})
           </Text>
         </TouchableOpacity>
 

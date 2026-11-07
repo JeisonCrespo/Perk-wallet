@@ -1,8 +1,8 @@
-# 💵 FinFlow
+# 💵 Perk Wallet
 
 <div align="center">
 
-![FinFlow Banner](https://img.shields.io/badge/FinFlow-v1.0.4-0284C7?style=for-the-badge&logo=android&logoColor=white)
+![Perk Wallet Banner](https://img.shields.io/badge/Perk%20Wallet-v1.0.4-0284C7?style=for-the-badge&logo=android&logoColor=white)
 [![Android APK](https://img.shields.io/badge/Release-APK%20Disponible-22C55E?style=for-the-badge&logo=android&logoColor=white)](https://github.com/JeisonCrespo/finanzas-usa/releases/latest)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2058-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
 [![React Native](https://img.shields.io/badge/React%20Native-0.88-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)

@@ -116,7 +116,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ visible, onFinis
         <View style={styles.headerRow}>
           <View style={styles.logoPill}>
             <Ionicons name="wallet" size={18} color="#34D399" />
-            <Text style={styles.logoText}>FinFlow</Text>
+            <Text style={styles.logoText}>Perk Wallet</Text>
           </View>
 
           <TouchableOpacity style={styles.skipBtn} onPress={handleSkipOrGuest}>

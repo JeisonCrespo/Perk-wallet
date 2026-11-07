@@ -15,6 +15,7 @@ import { DonutChart } from '../../src/components/DonutChart';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
+import { CategoryBreakdown } from '../../src/types/finance';
 
 export default function AnalyticsAndBudgetsScreen() {
   const { colors, isDark } = useTheme();
@@ -31,8 +32,8 @@ export default function AnalyticsAndBudgetsScreen() {
     addManualSpendToBudget,
     deleteMonthlyBudget,
     getBudgetSpentAmount,
-    getCategoryBreakdown,
     isOtherPersonAccount,
+    isOwnSavingsAccount,
   } = useFinance();
 
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -55,6 +56,15 @@ export default function AnalyticsAndBudgetsScreen() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
+  // Solo cuentas de balance activo (checking, billeteras, efectivo) excluyendo ahorros y dinero ajeno
+  const balanceAccounts = useMemo(() => {
+    return accounts.filter((acc) => !isOtherPersonAccount(acc) && !isOwnSavingsAccount(acc));
+  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+
+  const balanceAccountIds = useMemo(() => {
+    return new Set(balanceAccounts.map((a) => a.id));
+  }, [balanceAccounts]);
+
   // Simulación de días hasta el sueldo si el usuario desea ajustar
   const [customDaysToSalary, setCustomDaysToSalary] = useState<number | null>(null);
 
@@ -72,16 +82,73 @@ export default function AnalyticsAndBudgetsScreen() {
   }, [transactions, today]);
 
   const filteredTx = useMemo(() => {
-    return transactions.filter(
-      (t) =>
-        (selectedAccountId === 'all' || t.accountId === selectedAccountId) &&
-        (selectedMonth === 'all' || t.date.startsWith(selectedMonth))
-    );
-  }, [transactions, selectedAccountId, selectedMonth]);
+    return transactions.filter((t) => {
+      if (selectedAccountId === 'all') {
+        if (!balanceAccountIds.has(t.accountId)) return false;
+      } else {
+        if (t.accountId !== selectedAccountId) return false;
+      }
+      if (selectedMonth !== 'all' && !t.date.startsWith(selectedMonth)) return false;
+      return true;
+    });
+  }, [transactions, selectedAccountId, selectedMonth, balanceAccountIds]);
 
   const breakdown = useMemo(() => {
-    return getCategoryBreakdown(selectedType, selectedAccountId, selectedMonth);
-  }, [getCategoryBreakdown, selectedType, selectedAccountId, selectedMonth]);
+    const map = new Map<string, { total: number; count: number }>();
+    let grandTotal = 0;
+
+    for (const tx of filteredTx) {
+      if (tx.type === selectedType) {
+        const prev = map.get(tx.categoryId) || { total: 0, count: 0 };
+        map.set(tx.categoryId, {
+          total: prev.total + tx.amount,
+          count: prev.count + 1,
+        });
+        grandTotal += tx.amount;
+      }
+
+      if (selectedType === 'expense' && tx.fee && tx.fee > 0) {
+        const feeCatId = 'fee-auto';
+        const prev = map.get(feeCatId) || { total: 0, count: 0 };
+        map.set(feeCatId, {
+          total: prev.total + tx.fee,
+          count: prev.count + 1,
+        });
+        grandTotal += tx.fee;
+      }
+    }
+
+    const categoriesMap = new Map(categories.map((c) => [c.id, c]));
+    const result: CategoryBreakdown[] = [];
+
+    for (const [catId, stats] of map.entries()) {
+      if (catId === 'fee-auto') {
+        result.push({
+          categoryId: 'fee-auto',
+          categoryName: 'Comisiones de Envío / Retiro',
+          total: stats.total,
+          count: stats.count,
+          percentage: grandTotal > 0 ? (stats.total / grandTotal) * 100 : 0,
+          color: '#F43F5E',
+          icon: 'receipt-outline',
+        });
+        continue;
+      }
+
+      const cat = categoriesMap.get(catId);
+      result.push({
+        categoryId: catId,
+        categoryName: cat?.name || 'Sin Categoría',
+        total: stats.total,
+        count: stats.count,
+        percentage: grandTotal > 0 ? (stats.total / grandTotal) * 100 : 0,
+        color: cat?.color || '#94A3B8',
+        icon: cat?.icon || 'pricetag',
+      });
+    }
+
+    return result.sort((a, b) => b.total - a.total);
+  }, [filteredTx, selectedType, categories]);
 
   const totalIncome = useMemo(() => {
     return filteredTx
@@ -475,7 +542,7 @@ export default function AnalyticsAndBudgetsScreen() {
               ))}
             </ScrollView>
 
-            {/* Selector de Filtro por Cuenta (Solo cuentas propias) */}
+            {/* Selector de Filtro por Cuenta (Solo cuentas propias de balance disponible, excluyendo ahorros) */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -488,23 +555,21 @@ export default function AnalyticsAndBudgetsScreen() {
                 ]}
                 onPress={() => setSelectedAccountId('all')}
               >
-                <Text style={styles.filterChipText}>Todas mis cuentas</Text>
+                <Text style={styles.filterChipText}>Mi Balance Disponible</Text>
               </TouchableOpacity>
 
-              {accounts
-                .filter((acc) => !isOtherPersonAccount(acc))
-                .map((acc) => (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.filterChip,
-                      selectedAccountId === acc.id && styles.filterChipActive,
-                    ]}
-                    onPress={() => setSelectedAccountId(acc.id)}
-                  >
-                    <Text style={styles.filterChipText}>{acc.name}</Text>
-                  </TouchableOpacity>
-                ))}
+              {balanceAccounts.map((acc) => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[
+                    styles.filterChip,
+                    selectedAccountId === acc.id && styles.filterChipActive,
+                  ]}
+                  onPress={() => setSelectedAccountId(acc.id)}
+                >
+                  <Text style={styles.filterChipText}>{acc.name}</Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
 
             {/* Tarjeta Comparativa Ingresos vs Gastos */}

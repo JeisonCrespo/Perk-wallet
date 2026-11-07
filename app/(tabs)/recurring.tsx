@@ -689,7 +689,7 @@ export default function ControlScreen() {
                     } else {
                       Alert.alert(
                         'Permiso de Notificaciones',
-                        'Asegúrate de permitir las notificaciones de Finanzas USA / Expo Go en los ajustes de tu Android.'
+                        'Asegúrate de permitir las notificaciones de Perk Wallet / Expo Go en los ajustes de tu Android.'
                       );
                     }
                   }}
