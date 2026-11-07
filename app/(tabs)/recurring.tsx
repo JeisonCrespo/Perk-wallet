@@ -1055,14 +1055,14 @@ export default function ControlScreen() {
 
             <View style={styles.headerSpread}>
               <Text style={styles.sectionTitle}>
-                Mis Cuotas / Affirm ({installmentDebts.length})
+                Mis Cuotas ({installmentDebts.length})
               </Text>
               <TouchableOpacity
                 style={styles.newBtn}
                 onPress={openNewDebtModal}
               >
                 <Ionicons name="add" size={18} color="#0F172A" />
-                <Text style={styles.newBtnText}>Agregar Cuota / Affirm</Text>
+                <Text style={styles.newBtnText}>Agregar Cuota</Text>
               </TouchableOpacity>
             </View>
 
@@ -1072,7 +1072,7 @@ export default function ControlScreen() {
                   No tienes compras a cuotas o deudas registradas
                 </Text>
                 <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', marginTop: 6 }}>
-                  Toca "+ Agregar Cuota / Affirm" arriba para llevar tus planes de pago de Affirm, Klarna, Afterpay, PayPal Pay in 4 o tarjetas con su barra de avance.
+                  Toca "+ Agregar Cuota" arriba para llevar tus compras a plazos o tarjetas con su barra de avance y fechas en el calendario.
                 </Text>
               </View>
             ) : (
@@ -1594,7 +1594,7 @@ export default function ControlScreen() {
         }}
       >
         <Text style={styles.modalTitle}>
-          {editingDebt ? 'Editar Cuota / Deuda BNPL' : 'Nueva Deuda / Plan de Cuotas (Affirm, Klarna...)'}
+          {editingDebt ? 'Editar Cuota' : 'Nueva Cuota / Plan de Pagos'}
         </Text>
         <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 8 }}>
           Anota o modifica tus compras a plazos con proyección automática de fechas en el calendario y recordatorios.

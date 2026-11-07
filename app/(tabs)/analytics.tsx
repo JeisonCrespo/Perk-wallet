@@ -32,6 +32,7 @@ export default function AnalyticsAndBudgetsScreen() {
     deleteMonthlyBudget,
     getBudgetSpentAmount,
     getCategoryBreakdown,
+    isOtherPersonAccount,
   } = useFinance();
 
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -474,7 +475,7 @@ export default function AnalyticsAndBudgetsScreen() {
               ))}
             </ScrollView>
 
-            {/* Selector de Filtro por Cuenta */}
+            {/* Selector de Filtro por Cuenta (Solo cuentas propias) */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -487,21 +488,23 @@ export default function AnalyticsAndBudgetsScreen() {
                 ]}
                 onPress={() => setSelectedAccountId('all')}
               >
-                <Text style={styles.filterChipText}>Todas las Cuentas</Text>
+                <Text style={styles.filterChipText}>Todas mis cuentas</Text>
               </TouchableOpacity>
 
-              {accounts.map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[
-                    styles.filterChip,
-                    selectedAccountId === acc.id && styles.filterChipActive,
-                  ]}
-                  onPress={() => setSelectedAccountId(acc.id)}
-                >
-                  <Text style={styles.filterChipText}>{acc.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {accounts
+                .filter((acc) => !isOtherPersonAccount(acc))
+                .map((acc) => (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[
+                      styles.filterChip,
+                      selectedAccountId === acc.id && styles.filterChipActive,
+                    ]}
+                    onPress={() => setSelectedAccountId(acc.id)}
+                  >
+                    <Text style={styles.filterChipText}>{acc.name}</Text>
+                  </TouchableOpacity>
+                ))}
             </ScrollView>
 
             {/* Tarjeta Comparativa Ingresos vs Gastos */}

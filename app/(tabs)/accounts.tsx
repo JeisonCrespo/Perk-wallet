@@ -539,18 +539,20 @@ export default function AccountsScreen() {
           </View>
         )}
 
-        {/* Botones Principales: Agregar Banco US, Pasar Dinero y Cuenta Manual */}
+        {/* Botones Principales: Agregar Cuenta, Pasar Dinero y Cuenta Manual */}
         <View style={styles.topButtonsRow}>
           <TouchableOpacity
             style={styles.plaidConnectBtn}
             onPress={() => {
               handleSelectUSBankTemplate(US_MAJOR_BANKS[0], 'checking');
               setUsBankOwnerName('');
+              setUsBankBalance('');
+              setUsBankIncludeTotal(true);
               setShowUSBankModal(true);
             }}
           >
-            <Ionicons name="business-outline" size={18} color="#0F172A" />
-            <Text style={styles.plaidConnectBtnText} numberOfLines={1}>Agregar Banco</Text>
+            <Ionicons name="add-circle-outline" size={18} color="#064E3B" />
+            <Text style={styles.plaidConnectBtnText} numberOfLines={1}>+ Agregar Mi Cuenta</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1077,9 +1079,9 @@ export default function AccountsScreen() {
         animationType="slide"
         onClose={() => setShowUSBankModal(false)}
       >
-        <Text style={styles.modalTitle}>Agregar Banco o Billetera</Text>
+        <Text style={styles.modalTitle}>Agregar Mi Cuenta</Text>
         <Text style={styles.modalSub}>
-          Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, BofA, Capital One, Citi o Amex) e ingresa tu saldo actual.
+          Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, etc.) e ingresa tu saldo actual para sumarlo a tu dinero disponible.
         </Text>
 
         <Text style={styles.inputLabel}>1. Selecciona tu Banco o Billetera</Text>
@@ -1305,7 +1307,7 @@ export default function AccountsScreen() {
         >
           <Ionicons name="shield-checkmark-outline" size={18} color="#FFF" />
           <Text style={[styles.realPlaidBtnText, { color: '#FFF' }]}>
-            Agregar Cuenta de {selectedBankTemplate.shortName}
+            Guardar Mi Cuenta ({selectedBankTemplate.shortName})
           </Text>
         </TouchableOpacity>
 

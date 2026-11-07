@@ -287,11 +287,18 @@ export default function SettingsAndCategoriesScreen() {
   const handleBackupToGoogleDrive = async () => {
     try {
       const json = exportBackupJson();
-      const today = new Date().toISOString().split('T')[0];
-      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
 
       if (baseDir) {
-        const fileUri = `${baseDir}finanzas-usa-backup-${today}.json`;
+        const backupFolder = `${baseDir}FinFlow_Respaldos/`;
+        const folderInfo = await FileSystem.getInfoAsync(backupFolder);
+        if (!folderInfo.exists) {
+          await FileSystem.makeDirectoryAsync(backupFolder, { intermediates: true });
+        }
+        const fileUri = `${backupFolder}FinFlow_Respaldo_${today}_${timeStr}.json`;
         await FileSystem.writeAsStringAsync(fileUri, json, {
           encoding: FileSystem.EncodingType.UTF8,
         });
@@ -301,7 +308,7 @@ export default function SettingsAndCategoriesScreen() {
           await recordDriveBackupTimestamp();
           await Sharing.shareAsync(fileUri, {
             mimeType: 'application/json',
-            dialogTitle: 'Guardar Respaldo en Google Drive',
+            dialogTitle: 'FinFlow Respaldos • Guardar en Google Drive / Carpeta',
             UTI: 'public.json',
           });
           return;
@@ -310,7 +317,7 @@ export default function SettingsAndCategoriesScreen() {
 
       await recordDriveBackupTimestamp();
       await Share.share({
-        title: `finanzas-usa-backup-${today}.json`,
+        title: `FinFlow_Respaldo_${today}.json`,
         message: json,
       });
     } catch {
@@ -689,7 +696,7 @@ export default function SettingsAndCategoriesScreen() {
               <Ionicons name="shield-checkmark" size={18} color="#064E3B" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Finanzas USA • v1.0.4</Text>
+              <Text style={styles.menuRowTitle}>FinFlow • v1.0.4</Text>
               <Text style={styles.menuRowSub}>Base de datos SQLite local 100% privada</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -1395,7 +1402,7 @@ export default function SettingsAndCategoriesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
-            <Text style={styles.modalHeading}>Finanzas USA • v1.0.4</Text>
+            <Text style={styles.modalHeading}>FinFlow • v1.0.4</Text>
             <Text style={[styles.menuRowSub, { lineHeight: 20, marginVertical: 10 }]}>
               Aplicación de finanzas personales, presupuestos y control de deudas con almacenamiento SQLite local 100% privado en tu dispositivo.
             </Text>

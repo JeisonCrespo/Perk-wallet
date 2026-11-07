@@ -54,7 +54,7 @@ export async function sendTestNotificationNow(): Promise<boolean> {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🔔 Finanzas USA • Recordatorios Activos',
+        title: '🔔 FinFlow • Recordatorios Activos',
         body: '¡Tus notificaciones en Android funcionan! Te avisaremos 1 o 2 días antes de cada pago recurrente.',
         sound: 'default',
         color: '#38BDF8',
@@ -125,7 +125,7 @@ export async function syncRecurringNotifications(items: RecurringItem[]): Promis
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `📅 Hoy vence: ${item.title} ($${item.amount.toFixed(2)})`,
-            body: `No se descontará solo. Entra a Finanzas USA para confirmar o posponer este movimiento.`,
+            body: `No se descontará solo. Entra a FinFlow para confirmar o posponer este movimiento.`,
             sound: 'default',
             color: '#F59E0B',
             data: { recurringId: item.id, type: 'due_day' },
@@ -198,7 +198,7 @@ export async function syncAllNotifications(
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `📅 Hoy vence: ${item.title} ($${item.amount.toFixed(2)})`,
-            body: `Entra a Finanzas USA para confirmar o posponer este movimiento.`,
+            body: `Entra a FinFlow para confirmar o posponer este movimiento.`,
             sound: 'default',
             color: '#F59E0B',
             data: { id: item.id, type: 'recurring_today' },

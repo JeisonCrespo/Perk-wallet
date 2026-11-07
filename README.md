@@ -1,8 +1,8 @@
-# 💵 Finanzas USA
+# 💵 FinFlow
 
 <div align="center">
 
-![Finanzas USA Banner](https://img.shields.io/badge/Finanzas%20USA-v1.0.4-0284C7?style=for-the-badge&logo=android&logoColor=white)
+![FinFlow Banner](https://img.shields.io/badge/FinFlow-v1.0.4-0284C7?style=for-the-badge&logo=android&logoColor=white)
 [![Android APK](https://img.shields.io/badge/Release-APK%20Disponible-22C55E?style=for-the-badge&logo=android&logoColor=white)](https://github.com/JeisonCrespo/finanzas-usa/releases/latest)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2058-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
 [![React Native](https://img.shields.io/badge/React%20Native-0.88-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
@@ -10,8 +10,8 @@
 [![SQLite](https://img.shields.io/badge/Base%20de%20Datos-SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://docs.expo.dev/versions/latest/sdk/sqlite/)
 
 <p align="center">
-  <b>Tu asistente financiero personal optimizado para el día a día en Estados Unidos 🇺🇸</b><br>
-  Gestiona tus cuentas bancarias, tarjetas de crédito, gastos hormiga, cuotas de Affirm/Klarna, préstamos y supervivencia financiera con privacidad total y modo claro/oscuro.
+  <b>Tu asistente financiero personal e inteligente 🌎</b><br>
+  Gestiona tus cuentas bancarias, tarjetas de crédito, gastos hormiga, cuotas, préstamos y supervivencia financiera con privacidad total, soporte multimoneda y modo claro/oscuro.
 </p>
 
 [📲 Descargar APK v1.0.4](https://github.com/JeisonCrespo/finanzas-usa/releases/latest) • [✨ Características](#-características-principales) • [🛠️ Tecnologías](#-tecnologías-utilizadas) • [🚀 Instalación](#-instalación-y-desarrollo)

@@ -1827,7 +1827,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const json = exportBackupJson();
       const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
       if (baseDir) {
-        const fileUri = `${baseDir}finanzas-usa-autobackup.json`;
+        const folderUri = `${baseDir}FinFlow_Respaldos/`;
+        const folderInfo = await FileSystem.getInfoAsync(folderUri);
+        if (!folderInfo.exists) {
+          await FileSystem.makeDirectoryAsync(folderUri, { intermediates: true });
+        }
+        const fileUri = `${folderUri}FinFlow_AutoBackup.json`;
         await FileSystem.writeAsStringAsync(fileUri, json, {
           encoding: FileSystem.EncodingType.UTF8,
         });
