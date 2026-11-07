@@ -35,7 +35,12 @@ export default function AccountsScreen() {
   const {
     accounts,
     includedTotalBalance,
+    ownSavingsBalance,
     excludedTotalBalance,
+    otherPeopleTotalBalance,
+    hideOtherMoney,
+    toggleHideOtherMoney,
+    isOtherPersonAccount,
     toggleAccountIncludeInTotal,
     connectCustomUSBank,
     updateAccountBalanceAndMask,
@@ -96,26 +101,21 @@ export default function AccountsScreen() {
   const [transferFee, setTransferFee] = useState('');
   const [transferNote, setTransferNote] = useState('');
 
-  // Ocultar / Colapsar cuentas ajenas al fondo
-  const [hideOtherAccounts, setHideOtherAccounts] = useState(false);
-
   // Separar cuentas mías vs cuentas ajenas / separadas
   const myAccounts = useMemo(() => {
-    return accounts.filter(
-      (a) => a.includeInTotal && (!a.ownerName || a.ownerName.toLowerCase().includes('mío'))
-    );
-  }, [accounts]);
+    return accounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
+  }, [accounts, isOtherPersonAccount]);
 
   const otherAccounts = useMemo(() => {
+    return accounts.filter((a) => isOtherPersonAccount(a) || !a.includeInTotal);
+  }, [accounts, isOtherPersonAccount]);
+
+  // Cuentas separadas de terceros o con dueño específico
+  const separatedAccounts = useMemo(() => {
     return accounts.filter(
-      (a) => !a.includeInTotal || (a.ownerName && !a.ownerName.toLowerCase().includes('mío'))
+      (a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName?.trim())
     );
   }, [accounts]);
-
-  // Cuentas separadas (no tarjetas de crédito) o con dueño específico
-  const separatedAccounts = accounts.filter(
-    (a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName?.trim())
-  );
 
   const handleSelectUSBankTemplate = (bank: USBankTemplate, typeOverride?: AccountType) => {
     const targetType = typeOverride || usBankAccountType;
@@ -277,7 +277,7 @@ export default function AccountsScreen() {
             <Text style={styles.accountInstitution} numberOfLines={1} ellipsizeMode="tail">
               {acc.institution} •{' '}
               {isCredit
-                ? 'Tarjeta de Crédito US'
+                ? 'Tarjeta de Crédito'
                 : acc.type === 'savings'
                 ? 'Savings / Ahorros'
                 : 'Checking / Balance'}
@@ -450,18 +450,38 @@ export default function AccountsScreen() {
         {/* Resumen de separación de cuentas */}
         <View style={styles.summaryBanner}>
           <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel} numberOfLines={1}>MI SALDO PROPIO</Text>
+            <Text style={styles.summaryLabel} numberOfLines={1}>DISPONIBLE</Text>
             <Text style={styles.summaryIncludedValue} numberOfLines={1} adjustsFontSizeToFit>
               ${includedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel} numberOfLines={1}>SEPARADAS / AJENO</Text>
-            <Text style={styles.summaryExcludedValue} numberOfLines={1} adjustsFontSizeToFit>
-              ${excludedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            <Text style={styles.summaryLabel} numberOfLines={1}>MIS AHORROS</Text>
+            <Text style={[styles.summaryIncludedValue, { color: '#38BDF8' }]} numberOfLines={1} adjustsFontSizeToFit>
+              ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </Text>
           </View>
+          <View style={styles.summaryDivider} />
+          <TouchableOpacity
+            style={styles.summaryCol}
+            onPress={toggleHideOtherMoney}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Text style={styles.summaryLabel} numberOfLines={1}>DINERO AJENO</Text>
+              <Ionicons
+                name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
+                size={12}
+                color={colors.textMuted}
+              />
+            </View>
+            <Text style={styles.summaryExcludedValue} numberOfLines={1} adjustsFontSizeToFit>
+              {hideOtherMoney
+                ? '••••••'
+                : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Desglose individual de Cuentas Separadas / Dinero de otras personas */}
@@ -497,7 +517,9 @@ export default function AccountsScreen() {
                   style={{ alignItems: 'flex-end', minWidth: 70 }}
                 >
                   <Text style={styles.ownerItemAmount} numberOfLines={1} adjustsFontSizeToFit>
-                    ${sepAcc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {hideOtherMoney
+                      ? '••••••'
+                      : `$${sepAcc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -589,7 +611,7 @@ export default function AccountsScreen() {
         {otherAccounts.length > 0 && (
           <View style={{ marginTop: 8, marginBottom: 20 }}>
             <TouchableOpacity
-              onPress={() => setHideOtherAccounts(!hideOtherAccounts)}
+              onPress={toggleHideOtherMoney}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -611,17 +633,17 @@ export default function AccountsScreen() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Ionicons
-                  name={hideOtherAccounts ? 'eye-outline' : 'eye-off-outline'}
+                  name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
                   size={16}
                   color={isDark ? '#A78BFA' : '#7C3AED'}
                 />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#A78BFA' : '#7C3AED' }}>
-                  {hideOtherAccounts ? 'Mostrar' : 'Ocultar'}
+                  {hideOtherMoney ? 'Oculto' : 'Visible'}
                 </Text>
               </View>
             </TouchableOpacity>
 
-            {!hideOtherAccounts && otherAccounts.map(renderAccountCard)}
+            {!hideOtherMoney && otherAccounts.map(renderAccountCard)}
           </View>
         )}
       </ScrollView>
@@ -1002,7 +1024,7 @@ export default function AccountsScreen() {
         animationType="slide"
         onClose={() => setShowUSBankModal(false)}
       >
-        <Text style={styles.modalTitle}>Agregar Mi Banco o App en EE. UU.</Text>
+        <Text style={styles.modalTitle}>Agregar Banco o Billetera</Text>
         <Text style={styles.modalSub}>
           Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, BofA, Capital One, Citi o Amex) e ingresa tu saldo actual.
         </Text>

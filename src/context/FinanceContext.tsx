@@ -54,9 +54,12 @@ interface FinanceContextType {
   lastDriveBackupAt: string | null;
   recordDriveBackupTimestamp: () => Promise<void>;
   includedTotalBalance: number;
+  ownSavingsBalance: number;
   excludedTotalBalance: number;
   otherPeopleTotalBalance: number;
   netWorthBalance: number;
+  hideOtherMoney: boolean;
+  toggleHideOtherMoney: () => Promise<void>;
   isOtherPersonAccount: (account: BankAccount) => boolean;
   // Cuentas y Tarjetas de Crédito
   toggleAccountIncludeInTotal: (accountId: string) => Promise<void>;
@@ -78,6 +81,10 @@ interface FinanceContextType {
   deleteAccount: (accountId: string) => Promise<void>;
   // Categorías (Separadas en Ajustes)
   addCategory: (category: Omit<Category, 'id' | 'isCustom'>) => Promise<void>;
+  updateCategory: (
+    categoryId: string,
+    updates: { name: string; color: string; icon: string }
+  ) => Promise<void>;
   deleteCategory: (categoryId: string) => Promise<void>;
   // Presupuestos Mensuales (Apartado Independiente)
   addMonthlyBudget: (budget: Omit<MonthlyBudgetItem, 'id' | 'manualSpent'>) => Promise<void>;
@@ -155,6 +162,20 @@ interface FinanceContextType {
   deleteTransaction: (txId: string) => Promise<void>;
   // Recurrentes, Suscripciones Compartidas y Recordatorios en Android
   addRecurringItem: (item: Omit<RecurringItem, 'id' | 'active'>) => Promise<void>;
+  updateRecurringItem: (
+    recurringId: string,
+    updates: {
+      title: string;
+      amount: number;
+      type: 'expense' | 'income';
+      categoryId: string;
+      accountId: string;
+      frequency: RecurringItem['frequency'];
+      nextDueDate: string;
+      reminderDaysBefore?: number;
+      notes?: string;
+    }
+  ) => Promise<void>;
   updateRecurringReminderDays: (recurringId: string, reminderDaysBefore: number) => Promise<void>;
   toggleRecurringReimbursed: (recurringId: string) => Promise<void>;
   updateRecurringSharing: (
@@ -192,6 +213,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loans, setLoans] = useState<LoanRecord[]>([]);
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
   const [lastDriveBackupAt, setLastDriveBackupAtState] = useState<string | null>(null);
+  const [hideOtherMoney, setHideOtherMoney] = useState(false);
 
   const refreshAll = useCallback(async () => {
     try {
@@ -204,6 +226,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
       if (savedDriveBackup?.value) {
         setLastDriveBackupAtState(savedDriveBackup.value);
+      }
+
+      const savedHideMoney = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'hide_separated_money'"
+      );
+      if (savedHideMoney) {
+        setHideOtherMoney(savedHideMoney.value === '1');
       }
 
       const rawAccounts = await db.getAllAsync<any>('SELECT * FROM accounts ORDER BY name ASC');
@@ -370,6 +399,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setLastDriveBackupAtState(nowIso);
   };
 
+  const toggleHideOtherMoney = async () => {
+    const nextVal = !hideOtherMoney;
+    setHideOtherMoney(nextVal);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('hide_separated_money', ?)",
+      [nextVal ? '1' : '0']
+    );
+  };
+
   // Helper para identificar si una cuenta pertenece a otra persona
   const isOtherPersonAccount = useCallback((account: BankAccount): boolean => {
     if (!account.ownerName || !account.ownerName.trim()) return false;
@@ -378,26 +417,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return !ownWords.includes(clean);
   }, []);
 
-  // Dinero total de otras personas guardado o administrado
+  // Dinero total de otras personas guardado o administrado (se suman entre ellos, nunca con el saldo propio)
   const otherPeopleTotalBalance = useMemo(() => {
     return accounts
       .filter((a) => isOtherPersonAccount(a))
       .reduce((sum, a) => sum + a.balance, 0);
   }, [accounts, isOtherPersonAccount]);
 
-  // Saldo de cuentas propias del usuario incluidas en el día a día (excluye dinero ajeno)
-  const includedTotalBalance = useMemo(() => {
+  // Dinero de Ahorro Propio (Cuentas de tipo savings que pertenecen al usuario)
+  const ownSavingsBalance = useMemo(() => {
     return accounts
-      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a))
+      .filter((a) => !isOtherPersonAccount(a) && a.type === 'savings')
       .reduce((sum, a) => sum + a.balance, 0);
   }, [accounts, isOtherPersonAccount]);
 
-  // Cuentas separadas totales (no sumadas al saldo diario)
+  // Saldo Propio Disponible (Checking / efectivo propio incluido para gasto diario)
+  // No incluye ahorros propios (que se muestran en su propia categoría) ni dinero ajeno
+  const includedTotalBalance = useMemo(() => {
+    return accounts
+      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a) && a.type !== 'savings' && a.type !== 'credit')
+      .reduce((sum, a) => sum + a.balance, 0);
+  }, [accounts, isOtherPersonAccount]);
+
+  // Cuentas separadas propias (excluidas del saldo de gasto diario, pero propias)
   const excludedTotalBalance = useMemo(() => {
     return accounts
-      .filter((a) => !a.includeInTotal)
+      .filter((a) => !a.includeInTotal && !isOtherPersonAccount(a))
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts]);
+  }, [accounts, isOtherPersonAccount]);
 
   // PATRIMONIO NETO REAL DEL USUARIO:
   // Suma únicamente los activos PROPIOS del usuario (cuentas incluidas y separadas propias,
@@ -535,6 +582,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await db.runAsync(
       `INSERT INTO categories (id, name, type, color, icon, is_custom) VALUES (?, ?, ?, ?, ?, 1)`,
       [id, category.name.trim(), category.type, category.color, category.icon]
+    );
+    await refreshAll();
+  };
+
+  const updateCategory = async (
+    categoryId: string,
+    updates: { name: string; color: string; icon: string }
+  ) => {
+    const db = await getDb();
+    await db.runAsync(
+      `UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ?`,
+      [updates.name.trim(), updates.color, updates.icon, categoryId]
     );
     await refreshAll();
   };
@@ -766,7 +825,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteLoanRecord = async (loanId: string) => {
+    const target = loans.find((l) => l.id === loanId);
     const db = await getDb();
+    if (target) {
+      await db.runAsync(
+        `DELETE FROM transactions WHERE description LIKE ? OR description LIKE ?`,
+        [`%${target.personName.trim()}%`, `%${target.personName.trim()}%`]
+      );
+    }
     await db.runAsync(`DELETE FROM loans WHERE id = ?`, [loanId]);
     await refreshAll();
   };
@@ -892,7 +958,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteInstallmentDebt = async (debtId: string) => {
+    const target = installmentDebts.find((d) => d.id === debtId);
     const db = await getDb();
+    if (target) {
+      await db.runAsync(
+        `DELETE FROM transactions WHERE description LIKE ?`,
+        [`%${target.title.trim()}%`]
+      );
+    }
     await db.runAsync(`DELETE FROM installment_debts WHERE id = ?`, [debtId]);
     await refreshAll();
   };
@@ -1207,6 +1280,42 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         item.sharedWithNames?.trim() || null,
         peopleCount,
         myShare,
+      ]
+    );
+    await refreshAll();
+  };
+
+  const updateRecurringItem = async (
+    recurringId: string,
+    updates: {
+      title: string;
+      amount: number;
+      type: 'expense' | 'income';
+      categoryId: string;
+      accountId: string;
+      frequency: RecurringItem['frequency'];
+      nextDueDate: string;
+      reminderDaysBefore?: number;
+      notes?: string;
+    }
+  ) => {
+    const db = await getDb();
+    await db.runAsync(
+      `UPDATE recurring_items
+       SET title = ?, amount = ?, type = ?, category_id = ?, account_id = ?,
+           frequency = ?, next_due_date = ?, reminder_days = ?, notes = ?
+       WHERE id = ?`,
+      [
+        updates.title.trim(),
+        updates.amount,
+        updates.type,
+        updates.categoryId,
+        updates.accountId,
+        updates.frequency,
+        updates.nextDueDate,
+        updates.reminderDaysBefore !== undefined ? updates.reminderDaysBefore : 1,
+        updates.notes?.trim() || null,
+        recurringId,
       ]
     );
     await refreshAll();
@@ -1590,9 +1699,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastDriveBackupAt,
         recordDriveBackupTimestamp,
         includedTotalBalance,
+        ownSavingsBalance,
         excludedTotalBalance,
         otherPeopleTotalBalance,
         netWorthBalance,
+        hideOtherMoney,
+        toggleHideOtherMoney,
         isOtherPersonAccount,
         toggleAccountIncludeInTotal,
         addManualAccount,
@@ -1601,6 +1713,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateCreditCardDetails,
         deleteAccount,
         addCategory,
+        updateCategory,
         deleteCategory,
         addMonthlyBudget,
         addManualSpendToBudget,
@@ -1623,6 +1736,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         transferBetweenAccounts,
         deleteTransaction,
         addRecurringItem,
+        updateRecurringItem,
         updateRecurringReminderDays,
         toggleRecurringReimbursed,
         updateRecurringSharing,

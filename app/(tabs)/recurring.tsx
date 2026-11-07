@@ -88,7 +88,9 @@ export default function ControlScreen() {
     loans,
     savingsGoals,
     installmentDebts,
+    isOtherPersonAccount,
     addRecurringItem,
+    updateRecurringItem,
     updateRecurringReminderDays,
     toggleRecurringReimbursed,
     updateRecurringSharing,
@@ -111,6 +113,13 @@ export default function ControlScreen() {
 
   const [subTab, setSubTab] = useState<ControlSubTab>('recurring');
 
+  // Ordenar cuentas para mostrar las propias primero
+  const sortedAccounts = useMemo(() => {
+    const own = accounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
+    const separated = accounts.filter((a) => isOtherPersonAccount(a) || !a.includeInTotal);
+    return [...own, ...separated];
+  }, [accounts, isOtherPersonAccount]);
+
   // Gesto de volver atrás en Android: si está en Cuotas, Préstamos o Metas, regresa a Recurrentes primero
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -125,6 +134,7 @@ export default function ControlScreen() {
 
   // --- Estados Recurrentes y Suscripciones Compartidas (Netflix, Spotify, etc.) ---
   const [showAddRecModal, setShowAddRecModal] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringItem | null>(null);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
@@ -267,16 +277,39 @@ export default function ControlScreen() {
   const [goalContributionInput, setGoalContributionInput] = useState('');
 
   const openAddRecurringModal = () => {
-    setSelectedAccountId(accounts[0]?.id || '');
+    setEditingRecurring(null);
+    setSelectedAccountId(sortedAccounts[0]?.id || accounts[0]?.id || '');
     const defaultCat = categories.find((c) => c.type === 'expense');
     setSelectedCategoryId(defaultCat?.id || '');
     setTitle('');
     setAmount('');
+    setType('expense');
+    setFrequency('monthly');
     setIsSharedSub(false);
     setSharedWithNames('');
     setSharedPeopleCount(2);
     setCustomMyShare('');
     setNextDueDate(new Date().toISOString().split('T')[0]);
+    setReminderDaysBefore(1);
+    setShowAddRecModal(true);
+  };
+
+  const openEditRecurringModal = (rec: RecurringItem) => {
+    setEditingRecurring(rec);
+    setSelectedAccountId(rec.accountId);
+    setSelectedCategoryId(rec.categoryId);
+    setTitle(rec.title);
+    setAmount(String(rec.amount));
+    setType(rec.type);
+    setFrequency(rec.frequency);
+    setIsSharedSub(Boolean(rec.isShared));
+    setSharedWithNames(rec.sharedWithNames || '');
+    setSharedPeopleCount(rec.sharedPeopleCount && rec.sharedPeopleCount > 1 ? rec.sharedPeopleCount : 2);
+    setCustomMyShare(
+      rec.myShareAmount !== undefined && rec.myShareAmount > 0 ? String(rec.myShareAmount) : ''
+    );
+    setNextDueDate(rec.nextDueDate);
+    setReminderDaysBefore(rec.reminderDaysBefore ?? 1);
     setShowAddRecModal(true);
   };
 
@@ -294,20 +327,46 @@ export default function ControlScreen() {
         ? parsed / Math.max(2, sharedPeopleCount)
         : parsed;
 
-    await addRecurringItem({
-      title: title.trim(),
-      amount: parsed,
-      type,
-      categoryId: selectedCategoryId,
-      accountId: selectedAccountId,
-      frequency,
-      nextDueDate,
-      reminderDaysBefore,
-      isShared: isSharedSub,
-      sharedWithNames: isSharedSub ? sharedWithNames.trim() || undefined : undefined,
-      sharedPeopleCount: isSharedSub ? Math.max(2, sharedPeopleCount) : 1,
-      myShareAmount: isSharedSub ? finalMyShare : parsed,
-    });
+    if (editingRecurring) {
+      await updateRecurringItem(editingRecurring.id, {
+        title: title.trim(),
+        amount: parsed,
+        type,
+        categoryId: selectedCategoryId,
+        accountId: selectedAccountId,
+        frequency,
+        nextDueDate,
+        reminderDaysBefore,
+        notes: editingRecurring.notes,
+      });
+      if (
+        isSharedSub !== editingRecurring.isShared ||
+        sharedWithNames !== (editingRecurring.sharedWithNames || '')
+      ) {
+        await updateRecurringSharing(editingRecurring.id, {
+          isShared: isSharedSub,
+          sharedWithNames: isSharedSub ? sharedWithNames.trim() || undefined : undefined,
+          sharedPeopleCount: isSharedSub ? Math.max(2, sharedPeopleCount) : 1,
+          myShareAmount: isSharedSub ? finalMyShare : parsed,
+        });
+      }
+      setEditingRecurring(null);
+    } else {
+      await addRecurringItem({
+        title: title.trim(),
+        amount: parsed,
+        type,
+        categoryId: selectedCategoryId,
+        accountId: selectedAccountId,
+        frequency,
+        nextDueDate,
+        reminderDaysBefore,
+        isShared: isSharedSub,
+        sharedWithNames: isSharedSub ? sharedWithNames.trim() || undefined : undefined,
+        sharedPeopleCount: isSharedSub ? Math.max(2, sharedPeopleCount) : 1,
+        myShareAmount: isSharedSub ? finalMyShare : parsed,
+      });
+    }
     setShowAddRecModal(false);
   };
 
@@ -744,6 +803,9 @@ export default function ControlScreen() {
                         {item.type === 'income' ? '+' : '-'}${item.amount.toFixed(2)}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                        <TouchableOpacity onPress={() => openEditRecurringModal(item)}>
+                          <Ionicons name="create-outline" size={17} color="#38BDF8" />
+                        </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => {
                             setEditingSharedRec(item);
@@ -1776,7 +1838,7 @@ export default function ControlScreen() {
         {/* Cuenta bancaria vinculada */}
         <Text style={styles.inputLabel}>💳 Cuenta donde se pagan las cuotas (Opcional)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
+          {sortedAccounts.map((acc) => {
             const isSel = debtAccountId === acc.id;
             return (
               <TouchableOpacity
@@ -1796,7 +1858,7 @@ export default function ControlScreen() {
                     isSel && { color: isDark ? '#38BDF8' : '#0284C7', fontWeight: '700' },
                   ]}
                 >
-                  {acc.name}
+                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -1858,7 +1920,7 @@ export default function ControlScreen() {
           >
             <Text style={styles.chipText}>Solo bajar saldo de la deuda</Text>
           </TouchableOpacity>
-          {accounts.map((acc) => (
+          {sortedAccounts.map((acc) => (
             <TouchableOpacity
               key={acc.id}
               style={[
@@ -1870,7 +1932,9 @@ export default function ControlScreen() {
               ]}
               onPress={() => setDebtPayFromAccId(acc.id)}
             >
-              <Text style={styles.chipText}>{acc.name}</Text>
+              <Text style={styles.chipText}>
+                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -2120,7 +2184,7 @@ export default function ControlScreen() {
           🏦 {loanDirection === 'lent' ? '¿De qué cuenta prestaste el dinero?' : '¿En qué cuenta recibiste el préstamo?'}
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
+          {sortedAccounts.map((acc) => {
             const isSel = loanAccountId === acc.id;
             return (
               <TouchableOpacity
@@ -2147,7 +2211,7 @@ export default function ControlScreen() {
                     },
                   ]}
                 >
-                  {acc.name}
+                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -2263,13 +2327,15 @@ export default function ControlScreen() {
         </View>
       </KeyboardSafeModal>
 
-      {/* Modal Crear Nuevo Recurrente (Incluye opción de Suscripción Compartida) */}
+      {/* Modal Crear/Editar Recurrente (Incluye opción de Suscripción Compartida) */}
       <KeyboardSafeModal
         visible={showAddRecModal}
         animationType="slide"
         onClose={() => setShowAddRecModal(false)}
       >
-        <Text style={styles.modalTitle}>Nuevo Gasto / Ingreso Recurrente</Text>
+        <Text style={styles.modalTitle}>
+          {editingRecurring ? 'Editar Recurrente' : 'Nuevo Gasto / Ingreso Recurrente'}
+        </Text>
 
         <View style={styles.segmentRow}>
           <TouchableOpacity
@@ -2480,7 +2546,7 @@ export default function ControlScreen() {
 
         <Text style={styles.inputLabel}>Cuenta donde se aplicará al confirmar</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => (
+          {sortedAccounts.map((acc) => (
             <TouchableOpacity
               key={acc.id}
               style={[
@@ -2492,7 +2558,9 @@ export default function ControlScreen() {
               ]}
               onPress={() => setSelectedAccountId(acc.id)}
             >
-              <Text style={styles.chipText}>{acc.name}</Text>
+              <Text style={styles.chipText}>
+                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -2524,7 +2592,7 @@ export default function ControlScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveRecurring}>
-            <Text style={styles.saveBtnText}>Programar</Text>
+            <Text style={styles.saveBtnText}>{editingRecurring ? 'Guardar Cambios' : 'Programar'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>

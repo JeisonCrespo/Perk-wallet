@@ -37,7 +37,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="accounts"
         options={{
-          title: 'Bancos US',
+          title: 'Bancos',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="card-outline" size={size} color={String(color)} />
           ),

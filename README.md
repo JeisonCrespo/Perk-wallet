@@ -61,14 +61,20 @@
 - **Cuentas Asociadas**: Indica de qué cuenta salió el dinero prestado o en cuál se depositó.
 - **Abonos Parciales o Totales**: Registra pagos vinculándolos a la cuenta bancaria correspondiente.
 
-### 🔒 8. Privacidad Total & Cuentas Separadas
-- **Modo Oculto de Dinero Ajeno**: Oculta con `••••••` los saldos de dinero guardado de familiares y colapsa las tarjetas para máxima discreción al usar la app en público.
-- **Patrimonio Neto Protegido**: El dinero ajeno guardado no contamina ni infla tu patrimonio personal real.
+### 🔒 8. Privacidad Total, Ahorros Propios & Dinero Separado
+- **Cero Mezclas de Fondos**: Tu dinero para gastos diarios (*Saldo Disponible*), tus ahorros propios (*Mis Ahorros*) y el dinero guardado para terceros (*Dinero Ajeno*) se mantienen en tres bolsas completamente separadas.
+- **Persistencia de Privacidad**: La app recuerda permanentemente si decidiste ocultar con `••••••` el dinero ajeno y separado, manteniéndolo oculto incluso al cerrar y reabrir la app.
+- **Patrimonio Neto Protegido**: El dinero ajeno nunca infla tu saldo propio ni tu patrimonio personal neto real.
+- **Priorización de Cuentas**: Al registrar cualquier compra o movimiento, tus cuentas personales siempre aparecen en primer lugar.
 
-### 📥 9. Importador de Google Billetera & Alertas SMS
+### ✏️ 9. Edición Total de Recurrentes y Categorías
+- **Edición Completa de Recurrentes**: Modifica título, monto, cuenta, categoría, fecha de vencimiento y frecuencias en cualquier momento.
+- **Personalización de Categorías**: Edita nombre, paleta de colores e íconos de cualquier categoría con más de 65 opciones visuales.
+
+### 📥 10. Importador de Google Billetera & Alertas SMS
 - Pega textos de notificaciones bancarias o alertas de compra y la app extraerá automáticamente el monto, comercio y fecha.
 
-### ☁️ 10. Respaldo en la Nube con Google Drive
+### ☁️ 11. Respaldo en la Nube con Google Drive
 - Exporta e importa copias de seguridad completas en formato `.json` a Google Drive o almacenamiento local sin perder datos.
 
 ---
@@ -179,3 +185,4 @@ Este proyecto está bajo la Licencia **MIT**. Puedes usarlo, modificarlo y distr
 <div align="center">
   <sub>Desarrollado con dedicación para una gestión financiera inteligente, rápida y privada.</sub>
 </div>
+

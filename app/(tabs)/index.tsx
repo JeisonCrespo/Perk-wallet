@@ -27,9 +27,12 @@ export default function DashboardScreen() {
     transactions,
     recurringItems,
     includedTotalBalance,
+    ownSavingsBalance,
     excludedTotalBalance,
     otherPeopleTotalBalance,
     netWorthBalance,
+    hideOtherMoney,
+    toggleHideOtherMoney,
     isOtherPersonAccount,
     addTransaction,
     updateTransaction,
@@ -38,6 +41,7 @@ export default function DashboardScreen() {
     deleteTransaction,
     confirmRecurringItem,
     postponeRecurringItem,
+    skipRecurringCycle,
   } = useFinance();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -77,7 +81,14 @@ export default function DashboardScreen() {
   // Buscador y Filtro por Mes en Historial (#1 pedido)
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [hideOtherMoney, setHideOtherMoney] = useState(false);
+
+  // Ordenar cuentas para registrar movimientos: mis cuentas activas primero, luego separadas/ajenas al final
+  const sortedAccountsForSelection = useMemo(() => {
+    const ownIncluded = accounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
+    const ownExcluded = accounts.filter((a) => !isOtherPersonAccount(a) && !a.includeInTotal);
+    const otherPeople = accounts.filter((a) => isOtherPersonAccount(a));
+    return [...ownIncluded, ...ownExcluded, ...otherPeople];
+  }, [accounts, isOtherPersonAccount]);
 
   const today = new Date().toISOString().split('T')[0];
   const [txDate, setTxDate] = useState(today);
@@ -141,8 +152,8 @@ export default function DashboardScreen() {
 
   const openNewTransactionModal = (initialType: TransactionType = 'expense') => {
     setTxType(initialType);
-    setSelectedAccountId(accounts[0]?.id || '');
-    setToAccountId(accounts[1]?.id || accounts[0]?.id || '');
+    setSelectedAccountId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
+    setToAccountId(sortedAccountsForSelection[1]?.id || sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
     const defaultCat = categories.find(
       (c) => c.type === (initialType === 'income' ? 'income' : 'expense')
     );
@@ -216,13 +227,20 @@ export default function DashboardScreen() {
           </Text>
 
           <View style={styles.subBalancesRow}>
+            <View style={styles.subBalanceBox}>
+              <Text style={styles.subBalanceLabel} numberOfLines={1}>Mis Ahorros</Text>
+              <Text style={[styles.subBalanceValue, { color: '#38BDF8' }]} numberOfLines={1} adjustsFontSizeToFit>
+                ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+            </View>
+            <View style={styles.subBalanceDivider} />
             <TouchableOpacity
               style={styles.subBalanceBox}
-              onPress={() => setHideOtherMoney(!hideOtherMoney)}
+              onPress={toggleHideOtherMoney}
               activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={styles.subBalanceLabel} numberOfLines={1}>Cuentas Separadas</Text>
+                <Text style={styles.subBalanceLabel} numberOfLines={1}>Dinero Ajeno</Text>
                 <Ionicons
                   name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
                   size={13}
@@ -232,13 +250,13 @@ export default function DashboardScreen() {
               <Text style={styles.subBalanceValue} numberOfLines={1} adjustsFontSizeToFit>
                 {hideOtherMoney
                   ? '••••••'
-                  : `$${excludedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>
             </TouchableOpacity>
             <View style={styles.subBalanceDivider} />
             <View style={styles.subBalanceBox}>
-              <Text style={styles.subBalanceLabel} numberOfLines={1}>Mi Patrimonio Neto</Text>
-              <Text style={[styles.subBalanceValue, { color: '#38BDF8' }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={styles.subBalanceLabel} numberOfLines={1}>Patrimonio Neto</Text>
+              <Text style={[styles.subBalanceValue, { color: '#4ADE80' }]} numberOfLines={1} adjustsFontSizeToFit>
                 ${netWorthBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
@@ -255,7 +273,7 @@ export default function DashboardScreen() {
               }}
             >
               <TouchableOpacity
-                onPress={() => setHideOtherMoney(!hideOtherMoney)}
+                onPress={toggleHideOtherMoney}
                 activeOpacity={0.7}
                 style={{
                   flexDirection: 'row',
@@ -337,7 +355,7 @@ export default function DashboardScreen() {
                 },
               ]}
               onPress={() => {
-                setAntAccId(accounts[0]?.id || '');
+                setAntAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
                 setAntAmount('');
                 setAntPreset('☕ Café / Starbucks');
                 setAntCustomDesc('');
@@ -365,7 +383,7 @@ export default function DashboardScreen() {
                 },
               ]}
               onPress={() => {
-                setGWalletAccId(accounts[0]?.id || '');
+                setGWalletAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
                 setGWalletAmount('');
                 setGWalletMerchant('');
                 setGWalletText('');
@@ -428,7 +446,7 @@ export default function DashboardScreen() {
               borderRadius: 9,
             }}
             onPress={() => {
-              setAntAccId(accounts[0]?.id || '');
+              setAntAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
               setAntAmount('');
               setAntPreset('☕ Café / Starbucks');
               setAntCustomDesc('');
@@ -485,23 +503,48 @@ export default function DashboardScreen() {
                       style={styles.confirmBtn}
                       onPress={() => confirmRecurringItem(rec.id)}
                     >
-                      <Ionicons name="checkmark-circle-outline" size={16} color="#052E16" />
-                      <Text style={styles.confirmBtnText}>Confirmar ahora</Text>
+                      <Ionicons name="checkmark-circle-outline" size={15} color="#052E16" />
+                      <Text style={styles.confirmBtnText} numberOfLines={1} adjustsFontSizeToFit>
+                        Confirmar
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.postponeBtn}
                       onPress={() => postponeRecurringItem(rec.id, 3)}
                     >
-                      <Ionicons name="time-outline" size={16} color="#E2E8F0" />
-                      <Text style={styles.postponeBtnText}>Posponer +3 días</Text>
+                      <Ionicons name="time-outline" size={14} color={isDark ? '#E2E8F0' : '#475569'} />
+                      <Text style={styles.postponeBtnText} numberOfLines={1}>
+                        +3 días
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.postponeBtn}
                       onPress={() => postponeRecurringItem(rec.id, 7)}
                     >
-                      <Text style={styles.postponeBtnText}>+1 sem</Text>
+                      <Text style={styles.postponeBtnText} numberOfLines={1}>
+                        +7 días
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.postponeBtn,
+                        {
+                          backgroundColor: isDark ? '#331D1D' : '#FEE2E2',
+                          borderColor: isDark ? '#7F1D1D' : '#FCA5A5',
+                        },
+                      ]}
+                      onPress={() => skipRecurringCycle(rec.id)}
+                    >
+                      <Ionicons name="close-circle-outline" size={14} color="#EF4444" />
+                      <Text
+                        style={[styles.postponeBtnText, { color: '#EF4444' }]}
+                        numberOfLines={1}
+                      >
+                        Omitir
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -792,7 +835,7 @@ export default function DashboardScreen() {
               {txType === 'transfer' ? 'Cuenta Origen (De dónde sale)' : 'Cuenta'}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {accounts.map((acc) => (
+              {sortedAccountsForSelection.map((acc) => (
                 <TouchableOpacity
                   key={acc.id}
                   style={[
@@ -802,7 +845,7 @@ export default function DashboardScreen() {
                   onPress={() => setSelectedAccountId(acc.id)}
                 >
                   <Text style={styles.chipText}>
-                    {acc.name} (${acc.balance.toFixed(0)})
+                    {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -812,7 +855,7 @@ export default function DashboardScreen() {
               <>
                 <Text style={styles.inputLabel}>Cuenta Destino (A dónde entra)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {accounts.map((acc) => (
+                  {sortedAccountsForSelection.map((acc) => (
                     <TouchableOpacity
                       key={acc.id}
                       style={[
@@ -825,7 +868,7 @@ export default function DashboardScreen() {
                       onPress={() => setToAccountId(acc.id)}
                     >
                       <Text style={styles.chipText}>
-                        {acc.name} (${acc.balance.toFixed(0)})
+                        {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1014,7 +1057,7 @@ export default function DashboardScreen() {
           {editTxType === 'transfer' ? 'Cuenta Origen (De dónde salió)' : 'Cuenta / Tarjeta'}
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {accounts.map((acc) => (
+          {sortedAccountsForSelection.map((acc) => (
             <TouchableOpacity
               key={acc.id}
               style={[
@@ -1024,7 +1067,7 @@ export default function DashboardScreen() {
               onPress={() => setEditTxAccId(acc.id)}
             >
               <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(0)})
+                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1034,7 +1077,7 @@ export default function DashboardScreen() {
           <>
             <Text style={styles.inputLabel}>Cuenta Destino (A dónde entró)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {accounts.map((acc) => (
+              {sortedAccountsForSelection.map((acc) => (
                 <TouchableOpacity
                   key={acc.id}
                   style={[
@@ -1047,7 +1090,7 @@ export default function DashboardScreen() {
                   onPress={() => setEditTxToAccId(acc.id)}
                 >
                   <Text style={styles.chipText}>
-                    {acc.name} (${acc.balance.toFixed(0)})
+                    {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1256,7 +1299,7 @@ export default function DashboardScreen() {
 
         <Text style={styles.inputLabel}>3. ¿Con qué cuenta o tarjeta pagaste?</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {accounts.map((acc) => {
+          {sortedAccountsForSelection.map((acc) => {
             const isSelected = antAccId === acc.id;
             return (
               <TouchableOpacity
@@ -1276,7 +1319,7 @@ export default function DashboardScreen() {
                     isSelected && { color: isDark ? '#FDE68A' : '#92400E', fontWeight: '700' },
                   ]}
                 >
-                  {acc.name} (${acc.balance.toFixed(0)})
+                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
                 </Text>
               </TouchableOpacity>
             );
@@ -1339,7 +1382,7 @@ export default function DashboardScreen() {
 
         <Text style={styles.inputLabel}>1. ¿Con qué tarjeta de tu Google Billetera pagaste?</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {accounts.map((acc) => (
+          {sortedAccountsForSelection.map((acc) => (
             <TouchableOpacity
               key={acc.id}
               style={[
@@ -1352,7 +1395,7 @@ export default function DashboardScreen() {
               onPress={() => setGWalletAccId(acc.id)}
             >
               <Text style={styles.chipText}>
-                {acc.name} {acc.mask ? `(•••• ${acc.mask})` : ''}
+                {acc.name} {acc.mask ? `(•••• ${acc.mask})` : ''}{isOtherPersonAccount(acc) ? ' 👤' : ''}
               </Text>
             </TouchableOpacity>
           ))}
@@ -1578,26 +1621,28 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     },
     confirmBtn: {
       flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 6,
-      backgroundColor: '#4ADE80',
-      paddingVertical: 8,
-      borderRadius: 8,
-    },
-    confirmBtnText: { color: '#052E16', fontWeight: '700', fontSize: 12 },
-    postponeBtn: {
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 4,
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
-      paddingHorizontal: 10,
+      backgroundColor: '#4ADE80',
+      paddingHorizontal: 6,
       paddingVertical: 8,
       borderRadius: 8,
     },
-    postponeBtnText: { color: isDark ? '#E2E8F0' : '#475569', fontSize: 12, fontWeight: '600' },
+    confirmBtnText: { color: '#052E16', fontWeight: '700', fontSize: 11 },
+    postponeBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    postponeBtnText: { color: isDark ? '#E2E8F0' : '#475569', fontSize: 11, fontWeight: '600' },
     sectionHeaderSpread: {
       flexDirection: 'row',
       justifyContent: 'space-between',

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useFinance } from '../../src/context/FinanceContext';
+import { Category } from '../../src/types/finance';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import { sendTestNotificationNow } from '../../src/services/notificationService';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
@@ -41,6 +42,7 @@ export default function SettingsAndCategoriesScreen() {
     recurringItems,
     categories,
     addCategory,
+    updateCategory,
     deleteCategory,
     resetToZero,
     exportBackupJson,
@@ -53,6 +55,7 @@ export default function SettingsAndCategoriesScreen() {
   const { theme, isDark, setTheme, colors } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [showModal, setShowModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [name, setName] = useState('');
   const [selectedColor, setSelectedColor] = useState(COLOR_PALETTE[0]);
   const [selectedIcon, setSelectedIcon] = useState(GENERAL_ICONS[0].icon);
@@ -73,12 +76,21 @@ export default function SettingsAndCategoriesScreen() {
 
   const handleSaveCategory = async () => {
     if (!name.trim()) return;
-    await addCategory({
-      name: name.trim(),
-      type: tabType,
-      color: selectedColor,
-      icon: selectedIcon,
-    });
+    if (editingCategory) {
+      await updateCategory(editingCategory.id, {
+        name: name.trim(),
+        color: selectedColor,
+        icon: selectedIcon,
+      });
+      setEditingCategory(null);
+    } else {
+      await addCategory({
+        name: name.trim(),
+        type: tabType,
+        color: selectedColor,
+        icon: selectedIcon,
+      });
+    }
     setName('');
     setIconSearch('');
     setShowModal(false);
@@ -275,7 +287,13 @@ export default function SettingsAndCategoriesScreen() {
           <Text style={styles.sectionTitle}>Categorías de la App</Text>
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => setShowModal(true)}
+            onPress={() => {
+              setEditingCategory(null);
+              setName('');
+              setSelectedColor(COLOR_PALETTE[0]);
+              setSelectedIcon(GENERAL_ICONS[0].icon);
+              setShowModal(true);
+            }}
           >
             <Ionicons name="add" size={18} color="#0F172A" />
             <Text style={styles.addBtnText} numberOfLines={1}>Categoría</Text>
@@ -321,6 +339,19 @@ export default function SettingsAndCategoriesScreen() {
                   {cat.isCustom ? 'Categoría personalizada' : 'Categoría base de la app'}
                 </Text>
               </View>
+
+              <TouchableOpacity
+                style={{ marginLeft: 8 }}
+                onPress={() => {
+                  setEditingCategory(cat);
+                  setName(cat.name);
+                  setSelectedColor(cat.color);
+                  setSelectedIcon(cat.icon);
+                  setShowModal(true);
+                }}
+              >
+                <Ionicons name="create-outline" size={18} color={isDark ? '#38BDF8' : '#0284C7'} />
+              </TouchableOpacity>
 
               {cat.isCustom && (
                 <TouchableOpacity
@@ -378,14 +409,16 @@ export default function SettingsAndCategoriesScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal para Crear Nueva Categoría con 65+ Íconos y Buscador */}
+      {/* Modal para Crear/Editar Categoría con 65+ Íconos y Buscador */}
       <KeyboardSafeModal
         visible={showModal}
         animationType="slide"
         onClose={() => setShowModal(false)}
       >
         <Text style={styles.modalTitle}>
-          Nueva Categoría de {tabType === 'expense' ? 'Gasto' : 'Ingreso'}
+          {editingCategory
+            ? `Editar Categoría: ${editingCategory.name}`
+            : `Nueva Categoría de ${tabType === 'expense' ? 'Gasto' : 'Ingreso'}`}
         </Text>
 
         <Text style={styles.inputLabel}>Nombre de la Categoría</Text>
@@ -456,7 +489,9 @@ export default function SettingsAndCategoriesScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveCategory}>
-            <Text style={styles.saveBtnText}>Crear Categoría</Text>
+            <Text style={styles.saveBtnText}>
+              {editingCategory ? 'Guardar Cambios' : 'Crear Categoría'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
