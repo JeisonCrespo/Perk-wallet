@@ -44,56 +44,61 @@ jobs:
         working-directory: ./android
         run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
 
-      - name: Renombrar APK con versión 1.0.4
+      - name: Renombrar APK con versión 1.0.5
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk Finanzas-USA-v1.0.4.apk
-          cp android/app/build/outputs/apk/release/app-release.apk Finanzas-USA.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Perk-Wallet-v1.0.5.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Perk-Wallet.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Finanzas-USA-v1.0.5.apk
 
       - name: Subir APK como Artefacto descargable
         uses: actions/upload-artifact@v4
         with:
-          name: Finanzas-USA-v1.0.4-APK
-          path: Finanzas-USA-v1.0.4.apk
+          name: Perk-Wallet-v1.0.5-APK
+          path: Perk-Wallet-v1.0.5.apk
 
-      - name: Publicar APK v1.0.4 en GitHub Releases
+      - name: Publicar APK v1.0.5 en GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.4
-          name: "Finanzas USA Android APK (v1.0.4) — Correcciones y Mejoras Visuales"
+          tag_name: v1.0.5
+          name: "Perk Wallet Android APK (v1.0.5) — Nueva Identidad, Gráficas y Control de Ahorros"
           make_latest: true
           body: |
-            ### 🚀 Finanzas USA v1.0.4 — Corrección de Errores y Bugs Visuales
+            ### 🚀 Perk Wallet v1.0.5 — Nueva Identidad, Gráficas Inteligentes y Control Total de Ahorros
 
-            Esta actualización **1.0.4** se enfoca en resolver errores reportados, pulir la interfaz visual en modo claro/oscuro, integrar un calendario interactivo en toda la app y añadir control total sobre préstamos, cuotas y cuentas separadas:
+            ¡Te damos la bienvenida a **Perk Wallet**! Esta versión **v1.0.5** marca una evolución integral de la app, combinando un diseño moderno estilo billetera digital, soporte multimoneda global, métricas operativas limpias y copias de seguridad automáticas:
 
-            #### 🐛 1. Arreglo de Errores y Bugs Visuales
-            - **Corrección en Tema Claro (Modo Blanco)**: Eliminados todos los fondos oscuros/negros residuales en la tarjeta de *Runway (Presupuesto)*, el *Radar de Gastos Hormiga (Resumen)*, botones de acceso rápido y modales de edición. Ahora todo el contenido mantiene un contraste suave y legible.
-            - **Textos y Botones sin Desbordes**: Ajuste responsivo de tipografías y padding en botones de Presupuesto, Cuentas y Ajustes para evitar cortes en cualquier pantalla.
-            - **Eliminación de duplicados**: Corregido el doble signo `+` en botones de categorías y creación.
+            ---
 
-            #### 📅 2. Nuevo Calendario Interactivo en Toda la App
-            - **Adiós a escribir fechas manualmente**: Selector de fechas visual integrado con navegación de meses, días de la semana y botón de confirmación.
-            - **Atajos rápidos**: Presets de un toque para *Hoy, Mañana, +7 días, +15 días* y *1° del próximo mes*.
-            - **Disponible en todos los módulos**: Registro y edición de transacciones, vencimientos de recurrentes, primera cuota de deudas BNPL y compromisos de préstamos.
+            #### 💎 1. Nueva Identidad de Marca: Perk Wallet
+            - La app evoluciona oficialmente de *Finanzas USA* a **Perk Wallet**, diseñada para gestionar finanzas personales en cualquier parte del mundo con más de 25 divisas globales (USD, EUR, MXN, COP, GBP, JPY, CAD, etc.).
 
-            #### 🤝 3. Préstamos: Edición y Cuentas Bancarias Asociadas
-            - **Edición completa**: Modifica el monto, persona, dirección (*Me deben / Yo debo*), fecha de promesa y notas.
-            - **Cuenta bancaria vinculada**: Ahora puedes especificar de qué cuenta salió el dinero prestado o en qué cuenta se recibió el dinero.
-            - **Registro de abonos**: Al registrar un pago parcial o total, puedes indicar a qué cuenta entra o de cuál sale el abono.
+            #### 📊 2. Gráficas Inteligentes Enfocadas en tu Balance Operativo
+            - **Filtro de Balance Disponible**: Las gráficas circulares, flujos netos, ingresos y gastos ahora operan exclusivamente sobre tu dinero disponible para gastos (`Mi Balance Disponible`), omitiendo las cuentas de ahorro para no distorsionar tu flujo diario.
+            - **Cálculo sincronizado**: Desglose por categorías y comisiones bancarias 100% fiel a los movimientos de tus cuentas activas.
 
-            #### 💳 4. Cuotas y BNPL (Affirm, Klarna, Afterpay, Tarjetas)
-            - **Edición de planes de cuotas**: Modifica cuotas restantes, total, pagos mínimos y APR.
-            - **Frecuencia configurable**: Selecciona *Cada Mes (Mensual)*, *Cada 15 Días (Quincenal)* o *Semanal*.
-            - **Proyección automática de cuotas**: La app calcula y proyecta automáticamente las fechas exactas y montos estimados en el calendario para todas las cuotas pendientes.
-            - **Recordatorios locales en Android**: Notificaciones automáticas 1 o 2 días antes de cada vencimiento.
+            #### 💰 3. Separación Rigurosa: Mis Ahorros vs Dinero Ajeno
+            - **Mis Ahorros Protegidos**: El dinero que destinas a ahorros cuenta con su propio sub-balance e indicadores independientes.
+            - **Cuentas Separadas / Dinero Ajeno**: Ahora filtra estrictamente las cuentas de terceras personas (`isOtherPersonAccount`). Tu dinero y tus ahorros nunca volverán a mezclarse con cuentas de otros.
 
-            #### 👁️ 5. Privacidad y Control de Cuentas Separadas (Dinero Ajeno)
-            - **En Bancos**: Tus cuentas personales se muestran primero; las cuentas separadas de terceros se agrupan al fondo con un botón para colapsarlas y ocultarlas.
-            - **En Resumen**: Botón de ojo interactivo tanto en el sub-balance de *Cuentas Separadas* como en la sección de *Dinero ajeno guardado*, permitiendo ocultar todos los montos con `••••••` y esconder los recuadros individuales.
+            #### 🏦 4. Gestión de Cuentas y Bancos Pulida
+            - Botón principal refinado a **"Agregar Banco o Cuenta"** sin duplicación de iconos.
+            - Guardado rápido de cuentas de bancos como Wells Fargo, Chase, Truist, PayPal, Uber Wallet y cuentas manuales/efectivo.
 
-            #### 🌓 6. Modo Blanco y Negro con Persistencia
-            - Alterna entre tema oscuro y tema claro desde Ajustes con guardado automático en SQLite.
+            #### 📁 5. Respaldos Automáticos y Google Drive
+            - Creación automática y organizada en la carpeta dedicada `PerkWallet_Respaldos/`.
+            - Nombres descriptivos con fecha y hora (`PerkWallet_Respaldo_YYYY-MM-DD_HH-mm.json`).
+            - Auto-backup silencioso en segundo plano al abrir y cerrar la app.
+            - Integración fluida para subir a Google Drive o compartir en almacenamiento local.
+
+            #### 🔔 6. Recordatorios Locales Diarios en Android
+            - Recordatorio configurable con selección de hora para registrar tus gastos cotidianos.
+            - Alertas preventivas 1 a 2 días antes de cada vencimiento de pagos recurrentes o cuotas.
+
+            #### 🌓 7. Modo Dual Claro / Oscuro con Alto Contraste
+            - Paleta ergonómica optimizada en modo claro y oscuro, eliminando cualquier inconsistencia de contraste o textos ilegibles.
+            - Navegación fluida: al cambiar de pestaña la app vuelve automáticamente al inicio superior.
           files: |
-            Finanzas-USA-v1.0.4.apk
-            Finanzas-USA.apk
+            Perk-Wallet-v1.0.5.apk
+            Perk-Wallet.apk
+            Finanzas-USA-v1.0.5.apk
             android/app/build/outputs/apk/release/app-release.apk

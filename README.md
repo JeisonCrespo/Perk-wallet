@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Perk Wallet Banner](https://img.shields.io/badge/Perk%20Wallet-v1.0.4-0284C7?style=for-the-badge&logo=android&logoColor=white)
+![Perk Wallet Banner](https://img.shields.io/badge/Perk%20Wallet-v1.0.5-0284C7?style=for-the-badge&logo=android&logoColor=white)
 [![Android APK](https://img.shields.io/badge/Release-APK%20Disponible-22C55E?style=for-the-badge&logo=android&logoColor=white)](https://github.com/JeisonCrespo/finanzas-usa/releases/latest)
 [![Expo](https://img.shields.io/badge/Expo-SDK%2058-000000?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev)
 [![React Native](https://img.shields.io/badge/React%20Native-0.88-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactnative.dev)
@@ -14,7 +14,7 @@
   Gestiona tus cuentas bancarias, tarjetas de crédito, gastos hormiga, cuotas, préstamos y supervivencia financiera con privacidad total, soporte multimoneda y modo claro/oscuro.
 </p>
 
-[📲 Descargar APK v1.0.4](https://github.com/JeisonCrespo/finanzas-usa/releases/latest) • [✨ Características](#-características-principales) • [🛠️ Tecnologías](#-tecnologías-utilizadas) • [🚀 Instalación](#-instalación-y-desarrollo)
+[📲 Descargar APK v1.0.5](https://github.com/JeisonCrespo/finanzas-usa/releases/latest) • [✨ Características](#-características-principales) • [🛠️ Tecnologías](#-tecnologías-utilizadas) • [🚀 Instalación](#-instalación-y-desarrollo)
 
 </div>
 

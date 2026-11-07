@@ -696,7 +696,7 @@ export default function SettingsAndCategoriesScreen() {
               <Ionicons name="shield-checkmark" size={18} color="#064E3B" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Perk Wallet • v1.0.4</Text>
+              <Text style={styles.menuRowTitle}>Perk Wallet • v1.0.5</Text>
               <Text style={styles.menuRowSub}>Base de datos SQLite local 100% privada</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -1402,7 +1402,7 @@ export default function SettingsAndCategoriesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
-            <Text style={styles.modalHeading}>Perk Wallet • v1.0.4</Text>
+            <Text style={styles.modalHeading}>Perk Wallet • v1.0.5</Text>
             <Text style={[styles.menuRowSub, { lineHeight: 20, marginVertical: 10 }]}>
               Aplicación de finanzas personales, presupuestos y control de deudas con almacenamiento SQLite local 100% privado en tu dispositivo.
             </Text>

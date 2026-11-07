@@ -2,7 +2,7 @@
   "expo": {
     "name": "Perk Wallet",
     "slug": "finanzas-usa",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "finanzasusa",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.jeison.finanzasusa",
-      "versionCode": 5,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
