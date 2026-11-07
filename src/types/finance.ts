@@ -55,6 +55,9 @@ export interface UserProfile {
   accountType: string; // Ej. "Personal", "Premium", "Negocio"
   isLogged: boolean;
   avatarColor?: string;
+  avatarUri?: string; // Foto de perfil elegida desde la galería
+  dailyReminderEnabled?: boolean;
+  dailyReminderTime?: string; // Formato "HH:MM" (ej. "20:00")
 }
 
 export interface SecuritySettings {

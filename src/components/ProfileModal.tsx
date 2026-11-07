@@ -9,11 +9,13 @@ import {
   Switch,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useFinance } from '../context/FinanceContext';
-import { UserProfile, SecuritySettings } from '../types/finance';
+import { POPULAR_CURRENCIES, CurrencyOption } from '../constants/currencies';
 
 interface ProfileModalProps {
   visible: boolean;
@@ -38,7 +40,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   // Submodales para opciones
   const [activeSubModal, setActiveSubModal] = useState<
-    'personal' | 'security' | 'help' | 'login' | null
+    'personal' | 'security' | 'help' | 'login' | 'currency' | null
   >(null);
 
   // Estados locales para Personal Information
@@ -47,6 +49,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [editPhone, setEditPhone] = useState(userProfile.phone || '');
   const [editCurrency, setEditCurrency] = useState(userProfile.currency || 'USD');
   const [editAccountType, setEditAccountType] = useState(userProfile.accountType || 'Personal');
+
+  // Búsqueda de moneda
+  const [currencySearch, setCurrencySearch] = useState('');
 
   // Estados locales para Seguridad (PIN)
   const [pinInput, setPinInput] = useState(securitySettings.pinCode || '');
@@ -59,6 +64,48 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Login modal
   const [loginNameInput, setLoginNameInput] = useState('');
   const [loginEmailInput, setLoginEmailInput] = useState('');
+
+  // Selección de Foto de Perfil desde Galería
+  const handlePickAvatar = async () => {
+    Alert.alert(
+      'Foto de Perfil',
+      'Elige una opción para tu avatar:',
+      [
+        {
+          text: 'Elegir de Galería',
+          onPress: async () => {
+            try {
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+
+              if (!res.canceled && res.assets && res.assets.length > 0) {
+                const pickedUri = res.assets[0].uri;
+                await updateUserProfile({ avatarUri: pickedUri });
+              }
+            } catch {
+              Alert.alert('Error', 'No se pudo acceder a las fotos.');
+            }
+          },
+        },
+        ...(userProfile.avatarUri
+          ? [
+              {
+                text: 'Quitar Foto',
+                style: 'destructive' as const,
+                onPress: async () => {
+                  await updateUserProfile({ avatarUri: '' });
+                },
+              },
+            ]
+          : []),
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
 
   const openPersonalModal = () => {
     setEditName(userProfile.name);
@@ -137,6 +184,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setActiveSubModal(null);
   };
 
+  const filteredCurrencies = POPULAR_CURRENCIES.filter(
+    (c) =>
+      c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
+      c.name.toLowerCase().includes(currencySearch.toLowerCase())
+  );
+
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -153,22 +206,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* Avatar y Datos Principales */}
           <View style={styles.profileHero}>
             <View style={styles.avatarWrapper}>
-              <View
-                style={[
-                  styles.avatarLarge,
-                  { backgroundColor: userProfile.avatarColor || '#10B981' },
-                ]}
-              >
-                <Text style={styles.avatarInitial}>
-                  {(userProfile.name || 'J').charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.85}>
+                {userProfile.avatarUri ? (
+                  <Image source={{ uri: userProfile.avatarUri }} style={styles.avatarImage} />
+                ) : (
+                  <View
+                    style={[
+                      styles.avatarLarge,
+                      { backgroundColor: userProfile.avatarColor || '#10B981' },
+                    ]}
+                  >
+                    <Text style={styles.avatarInitial}>
+                      {(userProfile.name || 'J').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.avatarEditBadge}
-                onPress={openPersonalModal}
+                onPress={handlePickAvatar}
                 activeOpacity={0.8}
               >
-                <Ionicons name="add" size={16} color="#FFFFFF" />
+                <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
@@ -179,11 +239,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {userProfile.email || 'your.email@example.com'}
             </Text>
 
-            <View style={styles.accountTypePill}>
+            <TouchableOpacity
+              style={styles.accountTypePill}
+              onPress={() => setActiveSubModal('currency')}
+              activeOpacity={0.7}
+            >
               <Text style={styles.accountTypePillText}>
-                {userProfile.accountType || 'Personal'} • {userProfile.currency || 'USD'}
+                {userProfile.accountType || 'Personal'} • {userProfile.currency || 'USD'} ▾
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Grupo de Opciones Estilo Mockup */}
@@ -389,13 +453,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 10 }]}>
                 Moneda Principal
               </Text>
-              <TextInput
-                style={[styles.inputField, { backgroundColor: colors.inputBg, color: colors.text }]}
-                value={editCurrency}
-                onChangeText={setEditCurrency}
-                placeholder="USD"
-                placeholderTextColor="#64748B"
-              />
+              <TouchableOpacity
+                style={[styles.inputField, { backgroundColor: colors.inputBg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+                onPress={() => setActiveSubModal('currency')}
+              >
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{editCurrency}</Text>
+                <Text style={{ color: colors.textMuted }}>Cambiar moneda ➔</Text>
+              </TouchableOpacity>
 
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity
@@ -409,6 +473,68 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <Text style={styles.confirmBtnText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* --- SUBMODAL: CURRENCY SELECTOR (GRAN LISTA DE MONEDAS) --- */}
+        <Modal
+          visible={activeSubModal === 'currency'}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setActiveSubModal(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { backgroundColor: colors.card, maxHeight: '80%' }]}>
+              <Text style={[styles.modalHeading, { color: colors.text }]}>Elegir Moneda Principal</Text>
+
+              <TextInput
+                style={[styles.inputField, { backgroundColor: colors.inputBg, color: colors.text, marginBottom: 12 }]}
+                placeholder="Buscar país o divisa (USD, EUR, Peso...)"
+                placeholderTextColor="#64748B"
+                value={currencySearch}
+                onChangeText={setCurrencySearch}
+              />
+
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                {filteredCurrencies.map((item: CurrencyOption) => {
+                  const isSelected = (editCurrency || userProfile.currency) === item.code;
+                  return (
+                    <TouchableOpacity
+                      key={item.code}
+                      style={[
+                        styles.currencyRow,
+                        isSelected && { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' },
+                      ]}
+                      onPress={async () => {
+                        setEditCurrency(item.code);
+                        await updateUserProfile({ currency: item.code });
+                        setActiveSubModal(null);
+                      }}
+                    >
+                      <Text style={{ fontSize: 24, marginRight: 10 }}>{item.flag}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.currencyRowCode, { color: colors.text }]}>
+                          {item.code} ({item.symbol})
+                        </Text>
+                        <Text style={[styles.currencyRowName, { color: colors.textMuted }]}>
+                          {item.name}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[styles.cancelBtn, { marginTop: 12, backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
+                onPress={() => setActiveSubModal(null)}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textMuted }]}>Cerrar</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -519,8 +645,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   ¿Cómo hago una copia de seguridad?
                 </Text>
                 <Text style={[styles.helpA, { color: colors.textMuted }]}>
-                  En la pestaña "Ajustes", pulsa "Exportar Copia a Google Drive" para generar y compartir un archivo .json
-                  con todos tus movimientos.
+                  En la pestaña "Ajustes", pulsa "Copia de Seguridad" para generar y compartir un archivo .json
+                  con todos tus movimientos en Google Drive.
                 </Text>
               </ScrollView>
 
@@ -620,6 +746,13 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: 12,
   },
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: '#34D399',
+  },
   avatarLarge: {
     width: 90,
     height: 90,
@@ -638,9 +771,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#34D399',
     alignItems: 'center',
     justifyContent: 'center',
@@ -657,8 +790,8 @@ const styles = StyleSheet.create({
   },
   accountTypePill: {
     backgroundColor: '#10B98122',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderRadius: 999,
     marginTop: 8,
   },
@@ -701,6 +834,22 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginHorizontal: 16,
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  currencyRowCode: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  currencyRowName: {
+    fontSize: 12,
+    marginTop: 1,
   },
   modalOverlay: {
     flex: 1,

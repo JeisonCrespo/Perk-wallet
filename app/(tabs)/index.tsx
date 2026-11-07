@@ -9,9 +9,11 @@ import {
   TextInput,
   Alert,
   Switch,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFinance } from '../../src/context/FinanceContext';
 import { Transaction, TransactionType } from '../../src/types/finance';
 import { SmartIcon } from '../../src/components/BrandIcon';
@@ -23,6 +25,7 @@ import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const {
@@ -222,40 +225,45 @@ export default function DashboardScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Encabezado superior con Avatar, Saludo y Notificación (Estilo Mockup) */}
-        <View style={styles.topProfileBar}>
-          <TouchableOpacity
-            style={styles.profileInfoRow}
-            onPress={() => setShowProfileModal(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.avatarCircle}>
-              <Text style={{ color: '#064E3B', fontWeight: '800', fontSize: 14 }}>
-                {(userProfile.name || 'J').charAt(0).toUpperCase()}
-              </Text>
-            </View>
-            <View style={{ marginLeft: 10 }}>
-              <Text style={styles.greetingText}>Hola, de nuevo</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
-                <Text style={styles.profileNameText}>{userProfile.name || 'Usuario'}</Text>
-                <View style={styles.premiumBadge}>
-                  <Text style={styles.premiumBadgeText}>{userProfile.accountType || 'Personal'} ▾</Text>
+        {/* Encabezado Superior Continuo Estilo Mockup (Sin doble barra) */}
+        <View style={[styles.topHeroWrapper, { paddingTop: Math.max(insets.top + 8, 38) }]}>
+          {/* Fila del Perfil */}
+          <View style={styles.topProfileBar}>
+            <TouchableOpacity
+              style={styles.profileInfoRow}
+              onPress={() => setShowProfileModal(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.avatarCircle}>
+                {userProfile.avatarUri ? (
+                  <Image source={{ uri: userProfile.avatarUri }} style={styles.avatarImg} />
+                ) : (
+                  <Text style={{ color: '#064E3B', fontWeight: '800', fontSize: 15 }}>
+                    {(userProfile.name || 'J').charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={{ marginLeft: 10 }}>
+                <Text style={styles.greetingText}>Hola, de nuevo</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                  <Text style={styles.profileNameText}>{userProfile.name || 'Usuario'}</Text>
+                  <View style={styles.premiumBadge}>
+                    <Text style={styles.premiumBadgeText}>{userProfile.accountType || 'Personal'} ▾</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.bellBtn}
-            onPress={() => router.push('/(tabs)/categories')}
-          >
-            <Ionicons name="notifications-outline" size={20} color={isDark ? '#F0FDF4' : '#064E3B'} />
-            {dueRecurring.length > 0 && <View style={styles.bellDot} />}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={styles.bellBtn}
+              onPress={() => router.push('/(tabs)/categories')}
+            >
+              <Ionicons name="notifications-outline" size={20} color="#F0FDF4" />
+              {dueRecurring.length > 0 && <View style={styles.bellDot} />}
+            </TouchableOpacity>
+          </View>
 
-        {/* Tarjeta de Saldo Principal Estilo Emerald Mockup */}
-        <View style={styles.heroCard}>
+          {/* Saldo Principal */}
           <View style={styles.heroHeaderRow}>
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
@@ -270,16 +278,20 @@ export default function DashboardScreen() {
               />
             </TouchableOpacity>
 
-            <View style={styles.currencyBadge}>
-              <Text style={styles.currencyBadgeText}>USD ▾</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.currencyBadge}
+              onPress={() => setShowProfileModal(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.currencyBadgeText}>{userProfile.currency || 'USD'} ▾</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.heroBalance} numberOfLines={1} adjustsFontSizeToFit>
             ${includedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
 
-          {/* Botones de Acción Rápida: + Registrar, ↗ Pasar (Botón Verde Lima Destacado), 🐜 Hormiga */}
+          {/* Botones de Acción: + Registrar, ↗ Pasar, 🐜 Hormiga */}
           <View style={styles.heroActionRow}>
             <TouchableOpacity
               style={styles.heroAddBtn}
@@ -316,7 +328,7 @@ export default function DashboardScreen() {
           <View style={styles.subBalancesRow}>
             <View style={styles.subBalanceBox}>
               <Text style={styles.subBalanceLabel} numberOfLines={1}>Mis Ahorros</Text>
-              <Text style={[styles.subBalanceValue, { color: '#6EE7B7' }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.subBalanceValue, { color: '#A7F3D0' }]} numberOfLines={1} adjustsFontSizeToFit>
                 ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
@@ -334,7 +346,7 @@ export default function DashboardScreen() {
                   color="#A7F3D0"
                 />
               </View>
-              <Text style={styles.subBalanceValue} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.subBalanceValue, { color: '#FCD34D' }]} numberOfLines={1} adjustsFontSizeToFit>
                 {hideOtherMoney
                   ? '••••••'
                   : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -343,13 +355,13 @@ export default function DashboardScreen() {
             <View style={styles.subBalanceDivider} />
             <View style={styles.subBalanceBox}>
               <Text style={styles.subBalanceLabel} numberOfLines={1}>Patrimonio</Text>
-              <Text style={[styles.subBalanceValue, { color: '#F0FDF4' }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.subBalanceValue, { color: '#93C5FD' }]} numberOfLines={1} adjustsFontSizeToFit>
                 ${netWorthBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
           </View>
 
-          {/* Desglose rápido por dueño de cuentas separadas / dinero ajeno */}
+          {/* Desglose de cuentas separadas / dinero ajeno */}
           {accounts.some((a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName)) && (
             <View style={styles.separatedBoxInHero}>
               <TouchableOpacity
@@ -398,6 +410,8 @@ export default function DashboardScreen() {
             </View>
           )}
         </View>
+
+        <View style={{ paddingHorizontal: 16 }}>
 
         {/* Banner Promocional / Insight Financiero Estilo Mockup "Invest Smarter, Earn Better" */}
         <View style={styles.promoCard}>
@@ -738,6 +752,7 @@ export default function DashboardScreen() {
             );
           })
         )}
+        </View>
       </ScrollView>
 
       {/* Modal para Agregar Gasto, Ingreso o Transferencia entre Cuentas con Comisión Opcional */}
@@ -1541,12 +1556,27 @@ export default function DashboardScreen() {
 const getStyles = (colors: ThemeColors, isDark: boolean) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    scrollContent: { padding: 16, paddingBottom: 40 },
+    scrollContent: { paddingBottom: 40 },
+    topHeroWrapper: {
+      backgroundColor: isDark ? '#062B20' : '#083E31',
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+      paddingHorizontal: 18,
+      paddingBottom: 20,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#144637' : '#0E4E3E',
+    },
+    avatarImg: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+    },
     topProfileBar: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 14,
+      marginBottom: 16,
     },
     profileInfoRow: {
       flexDirection: 'row',
@@ -1561,27 +1591,28 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       justifyContent: 'center',
       borderWidth: 2,
       borderColor: '#34D399',
+      overflow: 'hidden',
     },
     greetingText: {
-      color: isDark ? '#A7F3D0' : '#165A46',
+      color: '#A7F3D0',
       fontSize: 11,
       fontWeight: '600',
     },
     profileNameText: {
-      color: colors.text,
+      color: '#F0FDF4',
       fontSize: 17,
       fontWeight: '800',
     },
     premiumBadge: {
-      backgroundColor: isDark ? '#0C3D2F' : '#E6F4EA',
+      backgroundColor: '#0C3D2F',
       paddingHorizontal: 8,
       paddingVertical: 2,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: isDark ? '#145A45' : '#CEEAD6',
+      borderColor: '#145A45',
     },
     premiumBadgeText: {
-      color: isDark ? '#A7F3D0' : '#137333',
+      color: '#A7F3D0',
       fontSize: 10,
       fontWeight: '700',
     },
@@ -1589,9 +1620,9 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: colors.card,
+      backgroundColor: '#0C3D2F',
       borderWidth: 1,
-      borderColor: colors.cardBorder,
+      borderColor: '#145A45',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1602,7 +1633,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       width: 7,
       height: 7,
       borderRadius: 3.5,
-      backgroundColor: '#10B981',
+      backgroundColor: '#34D399',
     },
     heroCard: {
       backgroundColor: colors.headerBg,

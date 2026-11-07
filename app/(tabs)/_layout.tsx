@@ -30,6 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          headerShown: false,
           title: 'Resumen',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="wallet-outline" size={size} color={String(color)} />

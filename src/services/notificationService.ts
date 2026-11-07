@@ -288,3 +288,42 @@ export async function syncAllNotifications(
     return 0;
   }
 }
+
+/**
+ * Programa un recordatorio diario recurrente para que el usuario registre sus gastos
+ */
+export async function scheduleDailyExpenseReminder(hour: number, minute: number): Promise<boolean> {
+  const granted = await requestAndroidNotificationPermissions();
+  if (!granted) return false;
+
+  try {
+    await Notifications.cancelScheduledNotificationAsync('daily-expense-reminder');
+  } catch {}
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'daily-expense-reminder',
+      content: {
+        title: '✍️ ¿Registraste tus gastos de hoy?',
+        body: 'Mantén tus finanzas al día. Tómate 10 segundos para registrar compras, salidas o transferencias.',
+        sound: 'default',
+        color: '#10B981',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+        channelId: ANDROID_CHANNEL_ID,
+      },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function cancelDailyExpenseReminder(): Promise<void> {
+  try {
+    await Notifications.cancelScheduledNotificationAsync('daily-expense-reminder');
+  } catch {}
+}
