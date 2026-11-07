@@ -84,6 +84,8 @@ interface FinanceContextType {
     dueDay: number
   ) => Promise<void>;
   deleteAccount: (accountId: string) => Promise<void>;
+  reorderAccounts: (orderedAccountIds: string[]) => Promise<void>;
+  moveAccount: (accountId: string, direction: 'up' | 'down') => Promise<void>;
   // Categorías (Separadas en Ajustes)
   addCategory: (category: Omit<Category, 'id' | 'isCustom'>) => Promise<void>;
   updateCategory: (
@@ -328,7 +330,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setHasCompletedOnboardingState(onboardingRow.value === '1' || onboardingRow.value === 'true');
       }
 
-      const rawAccounts = await db.getAllAsync<any>('SELECT * FROM accounts ORDER BY name ASC');
+      const rawAccounts = await db.getAllAsync<any>('SELECT * FROM accounts ORDER BY sort_order ASC, rowid ASC');
       setAccounts(
         rawAccounts.map((r) => ({
           id: r.id,
@@ -348,6 +350,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           creditLimit: Number(r.credit_limit || 0),
           closingDay: Number(r.closing_day || 0),
           dueDay: Number(r.due_day || 0),
+          sortOrder: Number(r.sort_order ?? 0),
         }))
       );
 
@@ -585,11 +588,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addManualAccount = async (account: Omit<BankAccount, 'id' | 'isPlaidConnected'>) => {
     const db = await getDb();
     const id = `acc-${Date.now()}`;
+    const nextOrder = accounts.length;
     await db.runAsync(
       `INSERT INTO accounts (
         id, name, institution, mask, type, balance, currency, include_in_total, is_plaid_connected, color,
-        owner_name, credit_limit, closing_day, due_day
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+        owner_name, credit_limit, closing_day, due_day, sort_order
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         account.name,
@@ -604,6 +608,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         account.creditLimit ?? 0,
         account.closingDay ?? 0,
         account.dueDay ?? 0,
+        nextOrder,
       ]
     );
     await refreshAll();
@@ -613,11 +618,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const db = await getDb();
     const id = `acc-usbank-${Date.now()}`;
     const nowIso = new Date().toISOString();
+    const nextOrder = accounts.length;
     await db.runAsync(
       `INSERT INTO accounts (
         id, name, institution, mask, type, balance, currency, include_in_total, is_plaid_connected, plaid_account_id, color, last_synced_at,
-        owner_name, credit_limit, closing_day, due_day
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+        owner_name, credit_limit, closing_day, due_day, sort_order
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         account.name,
@@ -634,6 +640,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         account.creditLimit ?? 0,
         account.closingDay ?? 0,
         account.dueDay ?? 0,
+        nextOrder,
       ]
     );
     await refreshAll();
@@ -684,6 +691,37 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await db.runAsync('DELETE FROM accounts WHERE id = ?', [accountId]);
     await refreshAll();
   };
+
+  const reorderAccounts = useCallback(
+    async (orderedIds: string[]) => {
+      const db = await getDb();
+      for (let i = 0; i < orderedIds.length; i++) {
+        await db.runAsync('UPDATE accounts SET sort_order = ? WHERE id = ?', [i, orderedIds[i]]);
+      }
+      await refreshAll();
+    },
+    [refreshAll]
+  );
+
+  const moveAccount = useCallback(
+    async (accountId: string, direction: 'up' | 'down') => {
+      const currentIndex = accounts.findIndex((a) => a.id === accountId);
+      if (currentIndex < 0) return;
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= accounts.length) return;
+
+      const newOrder = [...accounts];
+      const [moved] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(targetIndex, 0, moved);
+
+      const db = await getDb();
+      for (let i = 0; i < newOrder.length; i++) {
+        await db.runAsync('UPDATE accounts SET sort_order = ? WHERE id = ?', [i, newOrder[i].id]);
+      }
+      await refreshAll();
+    },
+    [accounts, refreshAll]
+  );
 
   const addCategory = async (category: Omit<Category, 'id' | 'isCustom'>) => {
     const db = await getDb();
@@ -1942,6 +1980,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateAccountBalanceAndMask,
         updateCreditCardDetails,
         deleteAccount,
+        reorderAccounts,
+        moveAccount,
         addCategory,
         updateCategory,
         deleteCategory,

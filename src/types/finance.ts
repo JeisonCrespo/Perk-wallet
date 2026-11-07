@@ -26,6 +26,7 @@ export interface BankAccount {
   creditLimit?: number; // Límite total de la tarjeta ($ USD)
   closingDay?: number; // Día de corte (Statement Closing Date, 1-31)
   dueDay?: number; // Día límite de pago (Payment Due Date, 1-31)
+  sortOrder?: number; // Posición u orden personalizado por el usuario
 }
 
 export interface Category {

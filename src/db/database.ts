@@ -62,7 +62,8 @@ async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       owner_name TEXT,
       credit_limit REAL DEFAULT 0,
       closing_day INTEGER DEFAULT 0,
-      due_day INTEGER DEFAULT 0
+      due_day INTEGER DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -176,6 +177,7 @@ async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   try { await db.execAsync(`ALTER TABLE accounts ADD COLUMN closing_day INTEGER DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE accounts ADD COLUMN due_day INTEGER DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE accounts ADD COLUMN owner_name TEXT;`); } catch {}
+  try { await db.execAsync(`ALTER TABLE accounts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE recurring_items ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 1;`); } catch {}
   try { await db.execAsync(`ALTER TABLE recurring_items ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE recurring_items ADD COLUMN shared_with_names TEXT;`); } catch {}

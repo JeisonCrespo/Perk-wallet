@@ -52,9 +52,12 @@ export default function AccountsScreen() {
     transferBetweenAccounts,
     importBankMovementsText,
     deleteAccount,
+    reorderAccounts,
+    moveAccount,
   } = useFinance();
 
   const scrollRef = useRef<any>(null);
+  const [showReorderModal, setShowReorderModal] = useState(false);
 
   // Al cambiar y volver a esta pestaña, siempre volver al inicio (arriba del todo)
   useFocusEffect(
@@ -246,11 +249,12 @@ export default function AccountsScreen() {
     setShowTransferModal(false);
   };
 
-  const renderAccountCard = (acc: BankAccount) => {
+  const renderAccountCard = (acc: BankAccount, index: number = 0, isMyAccountList: boolean = false) => {
     const isCredit = acc.type === 'credit';
     const limit = acc.creditLimit || 0;
     const used = Math.abs(acc.balance);
     const utilizationPct = limit > 0 ? (used / limit) * 100 : 0;
+    const isFirst = isMyAccountList && index === 0;
 
     return (
       <View
@@ -283,6 +287,12 @@ export default function AccountsScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Text style={styles.accountName} numberOfLines={1} ellipsizeMode="tail">{acc.name}</Text>
               {acc.mask && <Text style={styles.accountMask}>•••• {acc.mask}</Text>}
+              {isFirst && (
+                <View style={styles.primaryBadge}>
+                  <Ionicons name="star" size={10} color="#065F46" />
+                  <Text style={styles.primaryBadgeText}>Principal</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.accountInstitution} numberOfLines={1} ellipsizeMode="tail">
               {acc.institution} •{' '}
@@ -418,7 +428,34 @@ export default function AccountsScreen() {
             </Text>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {isMyAccountList && myAccounts.length > 1 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <TouchableOpacity
+                  disabled={index === 0}
+                  onPress={() => moveAccount(acc.id, 'up')}
+                  style={[
+                    styles.miniArrowBtn,
+                    index === 0 && { opacity: 0.25 },
+                  ]}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="arrow-up" size={13} color={isDark ? '#38BDF8' : '#0284C7'} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={index === myAccounts.length - 1}
+                  onPress={() => moveAccount(acc.id, 'down')}
+                  style={[
+                    styles.miniArrowBtn,
+                    index === myAccounts.length - 1 && { opacity: 0.25 },
+                  ]}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="arrow-down" size={13} color={isDark ? '#38BDF8' : '#0284C7'} />
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -537,39 +574,51 @@ export default function AccountsScreen() {
           </View>
         )}
 
-        {/* Botones Principales: Agregar Cuenta, Pasar Dinero y Cuenta Manual */}
-        <View style={styles.topButtonsRow}>
-          <TouchableOpacity
-            style={styles.plaidConnectBtn}
-            onPress={() => {
-              handleSelectUSBankTemplate(US_MAJOR_BANKS[0], 'checking');
-              setUsBankOwnerName('');
-              setUsBankBalance('');
-              setUsBankIncludeTotal(true);
-              setShowUSBankModal(true);
-            }}
-          >
-            <Ionicons name="add-circle-outline" size={18} color="#064E3B" />
-            <Text style={styles.plaidConnectBtnText} numberOfLines={1}>Agregar Banco o Cuenta</Text>
-          </TouchableOpacity>
+        {/* Botones Principales: Agregar Cuenta, Pasar Dinero, Ordenar y Cuenta Manual */}
+        <View style={{ gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.plaidConnectBtn, { flex: 1 }]}
+              onPress={() => {
+                handleSelectUSBankTemplate(US_MAJOR_BANKS[0], 'checking');
+                setUsBankOwnerName('');
+                setUsBankBalance('');
+                setUsBankIncludeTotal(true);
+                setShowUSBankModal(true);
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#064E3B" />
+              <Text style={styles.plaidConnectBtnText} numberOfLines={1}>Agregar Banco o Cuenta</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.transferBtn}
-            onPress={openTransferModal}
-          >
-            <Ionicons name="swap-horizontal-outline" size={18} color={isDark ? '#A7F3D0' : '#064E3B'} />
-            <Text style={styles.transferBtnText}>Pasar Dinero</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.manualBtn}
+              onPress={() => {
+                setManualOwnerName('');
+                setShowManualModal(true);
+              }}
+            >
+              <Ionicons name="add-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.manualBtn}
-            onPress={() => {
-              setManualOwnerName('');
-              setShowManualModal(true);
-            }}
-          >
-            <Ionicons name="add-outline" size={20} color={colors.text} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.transferBtn, { flex: 1 }]}
+              onPress={openTransferModal}
+            >
+              <Ionicons name="swap-horizontal-outline" size={17} color={isDark ? '#A7F3D0' : '#064E3B'} />
+              <Text style={styles.transferBtnText} numberOfLines={1}>Pasar Dinero</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.reorderBtn}
+              onPress={() => setShowReorderModal(true)}
+            >
+              <Ionicons name="swap-vertical-outline" size={17} color={isDark ? '#38BDF8' : '#0284C7'} />
+              <Text style={styles.reorderBtnText} numberOfLines={1}>⇄ Ordenar ({myAccounts.length})</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Botón: Escáner de Alertas Bancarias y CSV (Wells Fargo, Chase, Truist, PayPal, Uber) */}
@@ -608,10 +657,21 @@ export default function AccountsScreen() {
 
         {/* Cuentas Personales */}
         <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#94A3B8' : '#64748B', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-            Mis Cuentas ({myAccounts.length})
-          </Text>
-          {myAccounts.map(renderAccountCard)}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#94A3B8' : '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Mis Cuentas ({myAccounts.length})
+            </Text>
+            {myAccounts.length > 1 && (
+              <TouchableOpacity
+                onPress={() => setShowReorderModal(true)}
+                style={styles.reorderPillHeader}
+              >
+                <Ionicons name="swap-vertical" size={13} color={isDark ? '#38BDF8' : '#0284C7'} />
+                <Text style={styles.reorderPillHeaderText}>Reordenar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {myAccounts.map((acc, idx) => renderAccountCard(acc, idx, true))}
           {myAccounts.length === 0 && (
             <Text style={{ color: isDark ? '#64748B' : '#94A3B8', fontSize: 12, fontStyle: 'italic', marginVertical: 8 }}>
               No tienes cuentas personales configuradas.
@@ -655,7 +715,7 @@ export default function AccountsScreen() {
               </View>
             </TouchableOpacity>
 
-            {!hideOtherMoney && otherAccounts.map(renderAccountCard)}
+            {!hideOtherMoney && otherAccounts.map((acc, idx) => renderAccountCard(acc, idx, false))}
           </View>
         )}
       </ScrollView>
@@ -1494,6 +1554,109 @@ export default function AccountsScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
+
+      {/* Modal: Ordenar Mis Cuentas */}
+      <KeyboardSafeModal
+        visible={showReorderModal}
+        animationType="slide"
+        onClose={() => setShowReorderModal(false)}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={styles.modalTitle}>Ordenar Mis Cuentas</Text>
+          <TouchableOpacity onPress={() => setShowReorderModal(false)}>
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.modalSub}>
+          Mueve tus cuentas arriba o abajo. La cuenta en la posición #1 será la predeterminada al registrar nuevos gastos o ingresos.
+        </Text>
+
+        <ScrollView style={{ maxHeight: 380, marginVertical: 10 }}>
+          {myAccounts.map((acc, index) => {
+            const isFirst = index === 0;
+            const isLast = index === myAccounts.length - 1;
+            return (
+              <View
+                key={acc.id}
+                style={[
+                  styles.reorderModalItem,
+                  isFirst && styles.reorderModalItemPrimary,
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, marginRight: 8 }}>
+                  <View style={[styles.reorderPosCircle, isFirst && { backgroundColor: '#10B981' }]}>
+                    <Text style={[styles.reorderPosText, isFirst && { color: '#064E3B', fontWeight: '900' }]}>
+                      #{index + 1}
+                    </Text>
+                  </View>
+                  <View style={[styles.bankBadgeSmall, { backgroundColor: acc.color }]}>
+                    <Ionicons
+                      name={
+                        acc.type === 'credit'
+                          ? 'card-outline'
+                          : acc.institution.toLowerCase().includes('paypal')
+                          ? 'logo-paypal'
+                          : acc.institution.toLowerCase().includes('uber')
+                          ? 'car-sport-outline'
+                          : 'wallet-outline'
+                      }
+                      size={14}
+                      color="#FFF"
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={styles.reorderAccName} numberOfLines={1} ellipsizeMode="tail">
+                        {acc.name}
+                      </Text>
+                      {isFirst && (
+                        <View style={styles.primaryBadgeMini}>
+                          <Text style={styles.primaryBadgeMiniText}>★ Principal</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.reorderAccSub} numberOfLines={1}>
+                      ${acc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} • {acc.institution}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <TouchableOpacity
+                    disabled={isFirst}
+                    onPress={() => moveAccount(acc.id, 'up')}
+                    style={[
+                      styles.reorderArrowActionBtn,
+                      isFirst && { opacity: 0.25 },
+                    ]}
+                  >
+                    <Ionicons name="chevron-up" size={18} color={colors.text} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    disabled={isLast}
+                    onPress={() => moveAccount(acc.id, 'down')}
+                    style={[
+                      styles.reorderArrowActionBtn,
+                      isLast && { opacity: 0.25 },
+                    ]}
+                  >
+                    <Ionicons name="chevron-down" size={18} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.fullWidthPrimaryBtn}
+          onPress={() => setShowReorderModal(false)}
+        >
+          <Ionicons name="checkmark" size={18} color="#064E3B" />
+          <Text style={styles.fullWidthPrimaryBtnText}>Listo, Guardar Orden</Text>
+        </TouchableOpacity>
+      </KeyboardSafeModal>
     </View>
   );
 }
@@ -1607,6 +1770,144 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderRadius: 12,
       borderWidth: 1,
       borderColor: isDark ? '#334155' : '#CBD5E1',
+    },
+    reorderBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: isDark ? '#082F49' : '#E0F2FE',
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#0369A1' : '#BAE6FD',
+    },
+    reorderBtnText: {
+      color: isDark ? '#38BDF8' : '#0284C7',
+      fontWeight: '700',
+      fontSize: 13,
+    },
+    reorderPillHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? '#082F49' : '#E0F2FE',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: isDark ? '#0369A1' : '#BAE6FD',
+    },
+    reorderPillHeaderText: {
+      color: isDark ? '#38BDF8' : '#0284C7',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    primaryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: '#A7F3D0',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    primaryBadgeText: {
+      color: '#064E3B',
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    miniArrowBtn: {
+      width: 26,
+      height: 26,
+      borderRadius: 6,
+      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#CBD5E1',
+    },
+    reorderModalItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    reorderModalItemPrimary: {
+      borderColor: '#10B981',
+      backgroundColor: isDark ? '#064E3B33' : '#ECFDF5',
+    },
+    reorderPosCircle: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: isDark ? '#334155' : '#E2E8F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reorderPosText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    bankBadgeSmall: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reorderAccName: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    reorderAccSub: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    primaryBadgeMini: {
+      backgroundColor: '#A7F3D0',
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    primaryBadgeMiniText: {
+      color: '#064E3B',
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    reorderArrowActionBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: isDark ? '#334155' : '#E2E8F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: isDark ? '#475569' : '#CBD5E1',
+    },
+    fullWidthPrimaryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: '#A7F3D0',
+      paddingVertical: 14,
+      borderRadius: 12,
+      marginTop: 10,
+    },
+    fullWidthPrimaryBtnText: {
+      color: '#064E3B',
+      fontWeight: '800',
+      fontSize: 14,
     },
     helperNote: {
       color: colors.textMuted,
