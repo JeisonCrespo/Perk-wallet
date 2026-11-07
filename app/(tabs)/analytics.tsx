@@ -26,6 +26,7 @@ export default function AnalyticsAndBudgetsScreen() {
     includedTotalBalance,
     monthlyBudgets,
     addMonthlyBudget,
+    updateMonthlyBudget,
     addManualSpendToBudget,
     deleteMonthlyBudget,
     getBudgetSpentAmount,
@@ -138,13 +139,34 @@ export default function AnalyticsAndBudgetsScreen() {
     return () => sub.remove();
   }, [viewMode]);
 
-  // Modal para Crear un Presupuesto Mensual Independiente
+  // Modal para Crear / Modificar un Presupuesto Mensual Independiente
   const [showAddBudgetModal, setShowAddBudgetModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<any | null>(null);
   const [budgetTitle, setBudgetTitle] = useState('');
   const [budgetLimit, setBudgetLimit] = useState('');
   const [linkedCategoryId, setLinkedCategoryId] = useState<string>('');
   const [budgetIcon, setBudgetIcon] = useState('cart-outline');
   const [budgetColor, setBudgetColor] = useState('#10B981');
+
+  const handleStartEditBudget = (b: any) => {
+    setEditingBudget(b);
+    setBudgetTitle(b.title);
+    setBudgetLimit(b.limitAmount.toString());
+    setLinkedCategoryId(b.categoryId || '');
+    setBudgetIcon(b.icon);
+    setBudgetColor(b.color);
+    setShowAddBudgetModal(true);
+  };
+
+  const handleOpenNewBudget = () => {
+    setEditingBudget(null);
+    setBudgetTitle('');
+    setBudgetLimit('');
+    setLinkedCategoryId('');
+    setBudgetIcon('cart-outline');
+    setBudgetColor('#10B981');
+    setShowAddBudgetModal(true);
+  };
 
   // Modal para sumar un gasto rápido directo a un presupuesto
   const [addingSpendBudgetId, setAddingSpendBudgetId] = useState<string | null>(null);
@@ -171,13 +193,25 @@ export default function AnalyticsAndBudgetsScreen() {
     const parsedLimit = parseFloat(budgetLimit);
     if (!budgetTitle.trim() || !parsedLimit || parsedLimit <= 0) return;
 
-    await addMonthlyBudget({
-      title: budgetTitle.trim(),
-      limitAmount: parsedLimit,
-      categoryId: linkedCategoryId || undefined,
-      color: budgetColor,
-      icon: budgetIcon,
-    });
+    if (editingBudget) {
+      await updateMonthlyBudget({
+        ...editingBudget,
+        title: budgetTitle.trim(),
+        limitAmount: parsedLimit,
+        categoryId: linkedCategoryId || undefined,
+        color: budgetColor,
+        icon: budgetIcon,
+      });
+    } else {
+      await addMonthlyBudget({
+        title: budgetTitle.trim(),
+        limitAmount: parsedLimit,
+        categoryId: linkedCategoryId || undefined,
+        color: budgetColor,
+        icon: budgetIcon,
+      });
+    }
+    setEditingBudget(null);
     setBudgetTitle('');
     setBudgetLimit('');
     setLinkedCategoryId('');
@@ -301,7 +335,7 @@ export default function AnalyticsAndBudgetsScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.newBudgetBtn}
-                onPress={() => setShowAddBudgetModal(true)}
+                onPress={handleOpenNewBudget}
               >
                 <Ionicons name="add" size={18} color="#0F172A" />
                 <Text style={styles.newBudgetBtnText} numberOfLines={1}>Presupuesto</Text>
@@ -330,9 +364,14 @@ export default function AnalyticsAndBudgetsScreen() {
                       </View>
                     </View>
 
-                    <TouchableOpacity onPress={() => deleteMonthlyBudget(b.id)}>
-                      <Ionicons name="trash-outline" size={18} color="#64748B" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity onPress={() => handleStartEditBudget(b)}>
+                        <Ionicons name="create-outline" size={18} color={isDark ? '#34D399' : '#059669'} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteMonthlyBudget(b.id)}>
+                        <Ionicons name="trash-outline" size={18} color="#64748B" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <View style={styles.budgetNumbersRow}>
@@ -752,13 +791,15 @@ export default function AnalyticsAndBudgetsScreen() {
         )}
       </ScrollView>
 
-      {/* Modal para Agregar Presupuesto Mensual Independiente */}
+      {/* Modal para Agregar / Modificar Presupuesto Mensual */}
       <KeyboardSafeModal
         visible={showAddBudgetModal}
         animationType="slide"
         onClose={() => setShowAddBudgetModal(false)}
       >
-        <Text style={styles.modalTitle}>Nuevo Presupuesto para el Mes</Text>
+        <Text style={styles.modalTitle}>
+          {editingBudget ? 'Modificar Presupuesto' : 'Nuevo Presupuesto para el Mes'}
+        </Text>
 
         <Text style={styles.inputLabel}>
           Nombre del Presupuesto (Ej. Comida, Salidas, Juegos...)
@@ -841,7 +882,9 @@ export default function AnalyticsAndBudgetsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSaveNewBudget}>
-            <Text style={styles.saveBtnText}>Guardar Presupuesto</Text>
+            <Text style={styles.saveBtnText}>
+              {editingBudget ? 'Guardar Cambios' : 'Guardar Presupuesto'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>

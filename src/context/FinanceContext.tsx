@@ -9,6 +9,8 @@ import {
   RecurringItem,
   SavingsGoal,
   Transaction,
+  UserProfile,
+  SecuritySettings,
 } from '../types/finance';
 import {
   addDaysToDate,
@@ -89,6 +91,7 @@ interface FinanceContextType {
   deleteCategory: (categoryId: string) => Promise<void>;
   // Presupuestos Mensuales (Apartado Independiente)
   addMonthlyBudget: (budget: Omit<MonthlyBudgetItem, 'id' | 'manualSpent'>) => Promise<void>;
+  updateMonthlyBudget: (budget: MonthlyBudgetItem) => Promise<void>;
   addManualSpendToBudget: (budgetId: string, extraAmount: number) => Promise<void>;
   deleteMonthlyBudget: (budgetId: string) => Promise<void>;
   getBudgetSpentAmount: (budget: MonthlyBudgetItem) => number;
@@ -194,6 +197,15 @@ interface FinanceContextType {
   deleteRecurringItem: (recurringId: string) => Promise<void>;
   // Gráficas
   getCategoryBreakdown: (type: 'expense' | 'income', accountFilterId?: string, yearMonthFilter?: string) => CategoryBreakdown[];
+  // Perfil de Usuario, Seguridad y Onboarding
+  userProfile: UserProfile;
+  securitySettings: SecuritySettings;
+  hasCompletedOnboarding: boolean;
+  updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
+  updateSecuritySettings: (settings: Partial<SecuritySettings>) => Promise<void>;
+  setHasCompletedOnboarding: (completed: boolean) => Promise<void>;
+  loginUser: (name: string, email: string) => Promise<void>;
+  logoutUser: () => Promise<void>;
   // Respaldo y Reinicio
   resetToZero: () => Promise<void>;
   exportBackupJson: () => string;
@@ -202,6 +214,23 @@ interface FinanceContextType {
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
+
+const DEFAULT_USER_PROFILE: UserProfile = {
+  name: 'Jeison',
+  email: 'jeison@ejemplo.com',
+  phone: '',
+  currency: 'USD',
+  accountType: 'Personal',
+  isLogged: true,
+  avatarColor: '#10B981',
+};
+
+const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
+  pinEnabled: false,
+  pinCode: '',
+  requirePinOnOpen: false,
+  biometricEnabled: false,
+};
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [loading, setLoading] = useState(true);
@@ -215,6 +244,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
   const [lastDriveBackupAt, setLastDriveBackupAtState] = useState<string | null>(null);
   const [hideOtherMoney, setHideOtherMoney] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
+  const [securitySettings, setSecuritySettings] = useState<SecuritySettings>(DEFAULT_SECURITY_SETTINGS);
+  const [hasCompletedOnboarding, setHasCompletedOnboardingState] = useState(true);
 
   const refreshAll = useCallback(async () => {
     try {
@@ -234,6 +266,31 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
       if (savedHideMoney) {
         setHideOtherMoney(savedHideMoney.value === '1');
+      }
+
+      const profileRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'user_profile'"
+      );
+      if (profileRow?.value) {
+        try {
+          setUserProfile(JSON.parse(profileRow.value));
+        } catch {}
+      }
+
+      const securityRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'security_settings'"
+      );
+      if (securityRow?.value) {
+        try {
+          setSecuritySettings(JSON.parse(securityRow.value));
+        } catch {}
+      }
+
+      const onboardingRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'has_completed_onboarding'"
+      );
+      if (onboardingRow) {
+        setHasCompletedOnboardingState(onboardingRow.value === '1' || onboardingRow.value === 'true');
       }
 
       const rawAccounts = await db.getAllAsync<any>('SELECT * FROM accounts ORDER BY name ASC');
@@ -649,10 +706,71 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await refreshAll();
   };
 
+  const updateMonthlyBudget = async (budget: MonthlyBudgetItem) => {
+    const db = await getDb();
+    await db.runAsync(
+      `UPDATE monthly_budgets
+       SET title = ?, limit_amount = ?, category_id = ?, color = ?, icon = ?
+       WHERE id = ?`,
+      [
+        budget.title.trim(),
+        budget.limitAmount,
+        budget.categoryId || null,
+        budget.color,
+        budget.icon,
+        budget.id,
+      ]
+    );
+    await refreshAll();
+  };
+
   const deleteMonthlyBudget = async (budgetId: string) => {
     const db = await getDb();
     await db.runAsync(`DELETE FROM monthly_budgets WHERE id = ?`, [budgetId]);
     await refreshAll();
+  };
+
+  const updateUserProfile = async (updates: Partial<UserProfile>) => {
+    const next = { ...userProfile, ...updates };
+    setUserProfile(next);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('user_profile', ?)",
+      [JSON.stringify(next)]
+    );
+  };
+
+  const updateSecuritySettings = async (updates: Partial<SecuritySettings>) => {
+    const next = { ...securitySettings, ...updates };
+    setSecuritySettings(next);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('security_settings', ?)",
+      [JSON.stringify(next)]
+    );
+  };
+
+  const setHasCompletedOnboarding = async (completed: boolean) => {
+    setHasCompletedOnboardingState(completed);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('has_completed_onboarding', ?)",
+      [completed ? '1' : '0']
+    );
+  };
+
+  const loginUser = async (name: string, email: string) => {
+    await updateUserProfile({
+      name: name.trim() || 'Jeison',
+      email: email.trim() || 'jeison@ejemplo.com',
+      isLogged: true,
+    });
+  };
+
+  const logoutUser = async () => {
+    await updateUserProfile({
+      isLogged: false,
+    });
   };
 
   const getBudgetSpentAmount = useCallback(
@@ -1734,6 +1852,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateCategory,
         deleteCategory,
         addMonthlyBudget,
+        updateMonthlyBudget,
         addManualSpendToBudget,
         deleteMonthlyBudget,
         getBudgetSpentAmount,
@@ -1763,6 +1882,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         skipRecurringCycle,
         deleteRecurringItem,
         getCategoryBreakdown,
+        userProfile,
+        securitySettings,
+        hasCompletedOnboarding,
+        updateUserProfile,
+        updateSecuritySettings,
+        setHasCompletedOnboarding,
+        loginUser,
+        logoutUser,
         resetToZero,
         exportBackupJson,
         importBackupJson,

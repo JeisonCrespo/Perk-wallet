@@ -18,6 +18,7 @@ import { Category } from '../../src/types/finance';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import { sendTestNotificationNow } from '../../src/services/notificationService';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { ProfileModal } from '../../src/components/ProfileModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 const COLOR_PALETTE = [
@@ -49,8 +50,10 @@ export default function SettingsAndCategoriesScreen() {
     importBackupJson,
     lastDriveBackupAt,
     recordDriveBackupTimestamp,
+    userProfile,
   } = useFinance();
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [tabType, setTabType] = useState<'expense' | 'income'>('expense');
   const { theme, isDark, setTheme, colors } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
@@ -171,6 +174,31 @@ export default function SettingsAndCategoriesScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Bloque: Perfil & Seguridad Estilo Mockup */}
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => setShowProfileModal(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.profileAvatarBox}>
+            <Text style={styles.profileAvatarText}>
+              {(userProfile.name || 'J').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.profileName}>{userProfile.name || 'Your Name'}</Text>
+              <View style={styles.profileBadge}>
+                <Text style={styles.profileBadgeText}>{userProfile.accountType || 'Personal'}</Text>
+              </View>
+            </View>
+            <Text style={styles.profileEmail}>{userProfile.email || 'your.email@example.com'}</Text>
+            <Text style={styles.profileHint}>
+              Información personal, seguridad, PIN y más ➔
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {/* Bloque 0: Apariencia y Tema (Blanco y Negro) 🌓 */}
         <View style={styles.toolsCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -533,6 +561,12 @@ export default function SettingsAndCategoriesScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
+
+      {/* Modal de Perfil de Usuario */}
+      <ProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
     </View>
   );
 }
@@ -541,6 +575,57 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     scrollContent: { padding: 16, paddingBottom: 40 },
+    profileCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginBottom: 16,
+      gap: 12,
+    },
+    profileAvatarBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: '#34D399',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    profileAvatarText: {
+      color: '#064E3B',
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    profileName: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    profileBadge: {
+      backgroundColor: '#10B98122',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    profileBadgeText: {
+      color: '#10B981',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    profileEmail: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    profileHint: {
+      color: isDark ? '#34D399' : '#059669',
+      fontSize: 11,
+      fontWeight: '700',
+      marginTop: 6,
+    },
     toolsCard: {
       backgroundColor: colors.card,
       borderRadius: 16,

@@ -17,6 +17,8 @@ import { Transaction, TransactionType } from '../../src/types/finance';
 import { SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
 import { DateField } from '../../src/components/DatePickerModal';
+import { ProfileModal } from '../../src/components/ProfileModal';
+import { OnboardingView } from '../../src/components/OnboardingView';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 export default function DashboardScreen() {
@@ -46,8 +48,13 @@ export default function DashboardScreen() {
     confirmRecurringItem,
     postponeRecurringItem,
     skipRecurringCycle,
+    userProfile,
+    hasCompletedOnboarding,
+    setHasCompletedOnboarding,
   } = useFinance();
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [editTxType, setEditTxType] = useState<TransactionType>('expense');
@@ -217,20 +224,26 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Encabezado superior con Avatar, Saludo y Notificación (Estilo Mockup) */}
         <View style={styles.topProfileBar}>
-          <View style={styles.profileInfoRow}>
+          <TouchableOpacity
+            style={styles.profileInfoRow}
+            onPress={() => setShowProfileModal(true)}
+            activeOpacity={0.7}
+          >
             <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={18} color="#064E3B" />
+              <Text style={{ color: '#064E3B', fontWeight: '800', fontSize: 14 }}>
+                {(userProfile.name || 'J').charAt(0).toUpperCase()}
+              </Text>
             </View>
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.greetingText}>Hola, de nuevo</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
-                <Text style={styles.profileNameText}>Jeison</Text>
+                <Text style={styles.profileNameText}>{userProfile.name || 'Usuario'}</Text>
                 <View style={styles.premiumBadge}>
-                  <Text style={styles.premiumBadgeText}>Personal ▾</Text>
+                  <Text style={styles.premiumBadgeText}>{userProfile.accountType || 'Personal'} ▾</Text>
                 </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.bellBtn}
@@ -384,83 +397,6 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
-        </View>
-
-        {/* Quick Access (Accesos Rápidos en Cuadrícula 2x4 Estilo Mockup) */}
-        <View style={styles.quickAccessSection}>
-          <Text style={styles.quickAccessTitle}>Quick Access</Text>
-          <View style={styles.gridContainer}>
-            {[
-              {
-                id: 'wallet',
-                label: 'Billetera',
-                icon: 'wallet-outline',
-                action: () => {
-                  setGWalletAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
-                  setGWalletAmount('');
-                  setGWalletMerchant('');
-                  setGWalletText('');
-                  setShowGWalletModal(true);
-                },
-              },
-              {
-                id: 'accounts',
-                label: 'Bancos',
-                icon: 'card-outline',
-                action: () => router.push('/(tabs)/accounts'),
-              },
-              {
-                id: 'recurring',
-                label: 'Recurrentes',
-                icon: 'repeat-outline',
-                action: () => router.push('/(tabs)/recurring'),
-              },
-              {
-                id: 'debts',
-                label: 'Cuotas',
-                icon: 'layers-outline',
-                action: () => router.push('/(tabs)/recurring'),
-              },
-              {
-                id: 'loans',
-                label: 'Préstamos',
-                icon: 'people-outline',
-                action: () => router.push('/(tabs)/recurring'),
-              },
-              {
-                id: 'goals',
-                label: 'Metas',
-                icon: 'save-outline',
-                action: () => router.push('/(tabs)/recurring'),
-              },
-              {
-                id: 'budget',
-                label: 'Presupuesto',
-                icon: 'pie-chart-outline',
-                action: () => router.push('/(tabs)/analytics'),
-              },
-              {
-                id: 'settings',
-                label: 'Ajustes',
-                icon: 'settings-outline',
-                action: () => router.push('/(tabs)/categories'),
-              },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.gridTile}
-                onPress={item.action}
-                activeOpacity={0.7}
-              >
-                <View style={styles.gridTileIconBox}>
-                  <Ionicons name={item.icon as any} size={20} color={isDark ? '#34D399' : '#064E3B'} />
-                </View>
-                <Text style={styles.gridTileLabel} numberOfLines={1}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </View>
 
         {/* Banner Promocional / Insight Financiero Estilo Mockup "Invest Smarter, Earn Better" */}
@@ -1582,6 +1518,22 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardSafeModal>
+
+      {/* Modal de Perfil Completo Estilo Mockup */}
+      <ProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        onOpenOnboarding={() => setShowOnboardingModal(true)}
+      />
+
+      {/* Vista de Onboarding y Animación Inicial */}
+      <OnboardingView
+        visible={!hasCompletedOnboarding || showOnboardingModal}
+        onFinish={() => {
+          setShowOnboardingModal(false);
+          setHasCompletedOnboarding(true);
+        }}
+      />
     </View>
   );
 }

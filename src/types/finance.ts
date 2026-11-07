@@ -47,6 +47,23 @@ export interface MonthlyBudgetItem {
   icon: string;
 }
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  phone?: string;
+  currency: string;
+  accountType: string; // Ej. "Personal", "Premium", "Negocio"
+  isLogged: boolean;
+  avatarColor?: string;
+}
+
+export interface SecuritySettings {
+  pinEnabled: boolean;
+  pinCode?: string;
+  requirePinOnOpen: boolean;
+  biometricEnabled: boolean;
+}
+
 export interface SavingsGoal {
   id: string;
   title: string; // Ej. "Fondo de Emergencia", "PC Gamer", "Viaje"
