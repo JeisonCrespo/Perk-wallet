@@ -103,12 +103,13 @@ export default function DashboardScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
-  // Ordenar cuentas para registrar movimientos: las cuentas del usuario en su orden exacto personalizado primero
+  // Ordenar cuentas para registrar movimientos: mis cuentas activas primero (en su orden personalizado), luego ahorros, luego ajenas
   const sortedAccountsForSelection = useMemo(() => {
-    const ownAccounts = accounts.filter((a) => !isOtherPersonAccount(a));
+    const ownActive = accounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
+    const ownSavings = accounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
     const otherPeople = accounts.filter((a) => isOtherPersonAccount(a));
-    return [...ownAccounts, ...otherPeople];
-  }, [accounts, isOtherPersonAccount]);
+    return [...ownActive, ...ownSavings, ...otherPeople];
+  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
 
   const today = new Date().toISOString().split('T')[0];
   const [txDate, setTxDate] = useState(today);

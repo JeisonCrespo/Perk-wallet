@@ -18,6 +18,7 @@ import {
 } from '../../src/services/plaidService';
 import { AccountType, BankAccount } from '../../src/types/finance';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { DraggableAccountList } from '../../src/components/DraggableAccountList';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 const OWNER_QUICK_CHIPS = [
@@ -116,19 +117,31 @@ export default function AccountsScreen() {
   const [transferFee, setTransferFee] = useState('');
   const [transferNote, setTransferNote] = useState('');
 
-  // Separar cuentas mías vs cuentas ajenas / separadas
+  // 1. Cuentas mías de uso diario (checking, tarjetas de crédito, billeteras activas)
+  const myActiveAccounts = useMemo(() => {
+    return accounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
+  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+
+  // 2. Cuentas mías de ahorro (fondos guardados para metas o emergencias)
+  const mySavingsAccounts = useMemo(() => {
+    return accounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
+  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+
+  // Todas mis cuentas para compatibilidad
   const myAccounts = useMemo(() => {
     return accounts.filter((a) => !isOtherPersonAccount(a));
   }, [accounts, isOtherPersonAccount]);
 
+  // 3. Cuentas separadas de terceros o dinero ajeno exclusivamente
   const otherAccounts = useMemo(() => {
     return accounts.filter((a) => isOtherPersonAccount(a));
   }, [accounts, isOtherPersonAccount]);
 
-  // Cuentas separadas de terceros o dinero ajeno exclusivamente
   const separatedAccounts = useMemo(() => {
     return accounts.filter((a) => isOtherPersonAccount(a));
   }, [accounts, isOtherPersonAccount]);
+
+  const [hideSavings, setHideSavings] = useState(false);
 
   const handleSelectUSBankTemplate = (bank: USBankTemplate, typeOverride?: AccountType) => {
     const targetType = typeOverride || usBankAccountType;
@@ -249,7 +262,12 @@ export default function AccountsScreen() {
     setShowTransferModal(false);
   };
 
-  const renderAccountCard = (acc: BankAccount, index: number = 0, isMyAccountList: boolean = false) => {
+  const renderAccountCard = (
+    acc: BankAccount,
+    index: number = 0,
+    isMyAccountList: boolean = false,
+    listLength: number = 1
+  ) => {
     const isCredit = acc.type === 'credit';
     const limit = acc.creditLimit || 0;
     const used = Math.abs(acc.balance);
@@ -429,7 +447,7 @@ export default function AccountsScreen() {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {isMyAccountList && myAccounts.length > 1 && (
+            {isMyAccountList && listLength > 1 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <TouchableOpacity
                   disabled={index === 0}
@@ -443,11 +461,11 @@ export default function AccountsScreen() {
                   <Ionicons name="arrow-up" size={13} color={isDark ? '#38BDF8' : '#0284C7'} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  disabled={index === myAccounts.length - 1}
+                  disabled={index === listLength - 1}
                   onPress={() => moveAccount(acc.id, 'down')}
                   style={[
                     styles.miniArrowBtn,
-                    index === myAccounts.length - 1 && { opacity: 0.25 },
+                    index === listLength - 1 && { opacity: 0.25 },
                   ]}
                   activeOpacity={0.6}
                 >
@@ -616,7 +634,7 @@ export default function AccountsScreen() {
               onPress={() => setShowReorderModal(true)}
             >
               <Ionicons name="swap-vertical-outline" size={17} color={isDark ? '#38BDF8' : '#0284C7'} />
-              <Text style={styles.reorderBtnText} numberOfLines={1}>⇄ Ordenar ({myAccounts.length})</Text>
+              <Text style={styles.reorderBtnText} numberOfLines={1}>⇄ Ordenar ({myActiveAccounts.length})</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -652,16 +670,16 @@ export default function AccountsScreen() {
         </TouchableOpacity>
 
         <Text style={styles.helperNote}>
-          Administra tus cuentas de Wells Fargo, Chase, Truist, PayPal, Uber y más. En las cuentas separadas puedes anotar de quién es ese dinero para no mezclarlo con el tuyo.
+          Administra tus cuentas bancarias y tarjetas. En cuentas separadas o de ahorro puedes destinar fondos sin que se mezclen con tu saldo disponible.
         </Text>
 
-        {/* Cuentas Personales */}
-        <View style={{ marginBottom: 12 }}>
+        {/* 1. Cuentas de Uso Diario / Balance Activo */}
+        <View style={{ marginBottom: 14 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#94A3B8' : '#64748B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Mis Cuentas ({myAccounts.length})
+              Mis Cuentas de Balance ({myActiveAccounts.length})
             </Text>
-            {myAccounts.length > 1 && (
+            {myActiveAccounts.length > 1 && (
               <TouchableOpacity
                 onPress={() => setShowReorderModal(true)}
                 style={styles.reorderPillHeader}
@@ -671,13 +689,64 @@ export default function AccountsScreen() {
               </TouchableOpacity>
             )}
           </View>
-          {myAccounts.map((acc, idx) => renderAccountCard(acc, idx, true))}
-          {myAccounts.length === 0 && (
+          {myActiveAccounts.map((acc, idx) => renderAccountCard(acc, idx, true, myActiveAccounts.length))}
+          {myActiveAccounts.length === 0 && (
             <Text style={{ color: isDark ? '#64748B' : '#94A3B8', fontSize: 12, fontStyle: 'italic', marginVertical: 8 }}>
-              No tienes cuentas personales configuradas.
+              No tienes cuentas de uso diario configuradas.
             </Text>
           )}
         </View>
+
+        {/* 2. Cuentas de Ahorro Propias (Apartadas por separado) */}
+        {mySavingsAccounts.length > 0 && (
+          <View style={{ marginTop: 4, marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={() => setHideSavings(!hideSavings)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: isDark ? '#064E3B33' : '#ECFDF5',
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: isDark ? '#059669' : '#A7F3D0',
+                marginBottom: 8,
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="sparkles" size={16} color={isDark ? '#34D399' : '#059669'} />
+                <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#6EE7B7' : '#065F46' }}>
+                  Mis Cuentas de Ahorro ({mySavingsAccounts.length})
+                </Text>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: isDark ? '#A7F3D0' : '#047857' }}>
+                  ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons
+                  name={hideSavings ? 'eye-off-outline' : 'eye-outline'}
+                  size={16}
+                  color={isDark ? '#34D399' : '#059669'}
+                />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#34D399' : '#059669' }}>
+                  {hideSavings ? 'Oculto' : 'Visible'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {!hideSavings && (
+              <>
+                <Text style={[styles.helperNote, { marginBottom: 8 }]}>
+                  Dinero guardado y apartado para ahorros y metas. No se descuenta de tu saldo diario ni se mezcla con tus cuentas operativas.
+                </Text>
+                {mySavingsAccounts.map((acc, idx) => renderAccountCard(acc, idx, false, mySavingsAccounts.length))}
+              </>
+            )}
+          </View>
+        )}
 
         {/* Cuentas Separadas / Dinero de Terceros (Al fondo y con toggle para ocultar/mostrar) */}
         {otherAccounts.length > 0 && (
@@ -1555,7 +1624,7 @@ export default function AccountsScreen() {
         </View>
       </KeyboardSafeModal>
 
-      {/* Modal: Ordenar Mis Cuentas */}
+      {/* Modal: Ordenar Mis Cuentas con Drag & Drop y Flechas */}
       <KeyboardSafeModal
         visible={showReorderModal}
         animationType="slide"
@@ -1568,94 +1637,16 @@ export default function AccountsScreen() {
           </TouchableOpacity>
         </View>
         <Text style={styles.modalSub}>
-          Mueve tus cuentas arriba o abajo. La cuenta en la posición #1 será la predeterminada al registrar nuevos gastos o ingresos.
+          Arrastra apretando y subiendo o bajando con el dedo (o usa las flechas). La cuenta en la posición #1 será la predeterminada al registrar nuevos gastos e ingresos.
         </Text>
 
-        <ScrollView style={{ maxHeight: 380, marginVertical: 10 }}>
-          {myAccounts.map((acc, index) => {
-            const isFirst = index === 0;
-            const isLast = index === myAccounts.length - 1;
-            return (
-              <View
-                key={acc.id}
-                style={[
-                  styles.reorderModalItem,
-                  isFirst && styles.reorderModalItemPrimary,
-                ]}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, marginRight: 8 }}>
-                  <View style={[styles.reorderPosCircle, isFirst && { backgroundColor: '#10B981' }]}>
-                    <Text style={[styles.reorderPosText, isFirst && { color: '#064E3B', fontWeight: '900' }]}>
-                      #{index + 1}
-                    </Text>
-                  </View>
-                  <View style={[styles.bankBadgeSmall, { backgroundColor: acc.color }]}>
-                    <Ionicons
-                      name={
-                        acc.type === 'credit'
-                          ? 'card-outline'
-                          : acc.institution.toLowerCase().includes('paypal')
-                          ? 'logo-paypal'
-                          : acc.institution.toLowerCase().includes('uber')
-                          ? 'car-sport-outline'
-                          : 'wallet-outline'
-                      }
-                      size={14}
-                      color="#FFF"
-                    />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={styles.reorderAccName} numberOfLines={1} ellipsizeMode="tail">
-                        {acc.name}
-                      </Text>
-                      {isFirst && (
-                        <View style={styles.primaryBadgeMini}>
-                          <Text style={styles.primaryBadgeMiniText}>★ Principal</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.reorderAccSub} numberOfLines={1}>
-                      ${acc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} • {acc.institution}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <TouchableOpacity
-                    disabled={isFirst}
-                    onPress={() => moveAccount(acc.id, 'up')}
-                    style={[
-                      styles.reorderArrowActionBtn,
-                      isFirst && { opacity: 0.25 },
-                    ]}
-                  >
-                    <Ionicons name="chevron-up" size={18} color={colors.text} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    disabled={isLast}
-                    onPress={() => moveAccount(acc.id, 'down')}
-                    style={[
-                      styles.reorderArrowActionBtn,
-                      isLast && { opacity: 0.25 },
-                    ]}
-                  >
-                    <Ionicons name="chevron-down" size={18} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-
-        <TouchableOpacity
-          style={styles.fullWidthPrimaryBtn}
-          onPress={() => setShowReorderModal(false)}
-        >
-          <Ionicons name="checkmark" size={18} color="#064E3B" />
-          <Text style={styles.fullWidthPrimaryBtnText}>Listo, Guardar Orden</Text>
-        </TouchableOpacity>
+        <DraggableAccountList
+          accounts={myActiveAccounts}
+          onCommit={reorderAccounts}
+          colors={colors}
+          isDark={isDark}
+          onClose={() => setShowReorderModal(false)}
+        />
       </KeyboardSafeModal>
     </View>
   );
