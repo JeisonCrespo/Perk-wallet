@@ -243,12 +243,7 @@ export default function DashboardScreen() {
               </View>
               <View style={{ marginLeft: 10 }}>
                 <Text style={styles.greetingText}>Hola, de nuevo</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
-                  <Text style={styles.profileNameText}>{userProfile.name || 'Usuario'}</Text>
-                  <View style={styles.premiumBadge}>
-                    <Text style={styles.premiumBadgeText}>{userProfile.accountType || 'Personal'} ▾</Text>
-                  </View>
-                </View>
+                <Text style={styles.profileNameText}>{userProfile.name || 'Usuario'}</Text>
               </View>
             </TouchableOpacity>
 
@@ -618,7 +613,14 @@ export default function DashboardScreen() {
             ]}
             onPress={() => setSelectedMonth('all')}
           >
-            <Text style={styles.monthChipText}>Todos los meses</Text>
+            <Text
+              style={[
+                styles.monthChipText,
+                selectedMonth === 'all' && styles.monthChipTextActive,
+              ]}
+            >
+              Todos los meses
+            </Text>
           </TouchableOpacity>
 
           {availableMonths.map((ym) => (
@@ -630,7 +632,14 @@ export default function DashboardScreen() {
               ]}
               onPress={() => setSelectedMonth(ym)}
             >
-              <Text style={styles.monthChipText}>Mes: {ym}</Text>
+              <Text
+                style={[
+                  styles.monthChipText,
+                  selectedMonth === ym && styles.monthChipTextActive,
+                ]}
+              >
+                Mes: {ym}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -770,7 +779,14 @@ export default function DashboardScreen() {
                   if (firstCat) setSelectedCategoryId(firstCat.id);
                 }}
               >
-                <Text style={styles.segmentText}>Gasto</Text>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    txType === 'expense' ? styles.segmentTextActive : styles.segmentTextInactive,
+                  ]}
+                >
+                  Gasto
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -781,14 +797,28 @@ export default function DashboardScreen() {
                   if (firstCat) setSelectedCategoryId(firstCat.id);
                 }}
               >
-                <Text style={styles.segmentText}>Ingreso</Text>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    txType === 'income' ? styles.segmentTextActive : styles.segmentTextInactive,
+                  ]}
+                >
+                  Ingreso
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.segmentBtn, txType === 'transfer' && styles.segmentTransferActive]}
                 onPress={() => setTxType('transfer')}
               >
-                <Text style={styles.segmentText}>Transferir</Text>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    txType === 'transfer' ? styles.segmentTextActive : styles.segmentTextInactive,
+                  ]}
+                >
+                  Transferir
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -845,43 +875,68 @@ export default function DashboardScreen() {
               {txType === 'transfer' ? 'Cuenta Origen (De dónde sale)' : 'Cuenta'}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {sortedAccountsForSelection.map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[
-                    styles.chip,
-                    selectedAccountId === acc.id && { borderColor: '#38BDF8', backgroundColor: '#0C4A6E' },
-                  ]}
-                  onPress={() => setSelectedAccountId(acc.id)}
-                >
-                  <Text style={styles.chipText}>
-                    {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {sortedAccountsForSelection.map((acc) => {
+                const isSelected = selectedAccountId === acc.id;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[
+                      styles.chip,
+                      isSelected && {
+                        borderColor: isDark ? '#38BDF8' : '#0284C7',
+                        backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+                      },
+                    ]}
+                    onPress={() => setSelectedAccountId(acc.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isSelected && {
+                          color: isDark ? '#38BDF8' : '#0369A1',
+                          fontWeight: '800',
+                        },
+                      ]}
+                    >
+                      {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
             {txType === 'transfer' ? (
               <>
                 <Text style={styles.inputLabel}>Cuenta Destino (A dónde entra)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {sortedAccountsForSelection.map((acc) => (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={[
-                        styles.chip,
-                        toAccountId === acc.id && {
-                          borderColor: '#4ADE80',
-                          backgroundColor: '#14532D',
-                        },
-                      ]}
-                      onPress={() => setToAccountId(acc.id)}
-                    >
-                      <Text style={styles.chipText}>
-                        {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {sortedAccountsForSelection.map((acc) => {
+                    const isSelected = toAccountId === acc.id;
+                    return (
+                      <TouchableOpacity
+                        key={acc.id}
+                        style={[
+                          styles.chip,
+                          isSelected && {
+                            borderColor: isDark ? '#4ADE80' : '#16A34A',
+                            backgroundColor: isDark ? '#14532D' : '#DCFCE7',
+                          },
+                        ]}
+                        onPress={() => setToAccountId(acc.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            isSelected && {
+                              color: isDark ? '#86EFAC' : '#15803D',
+                              fontWeight: '800',
+                            },
+                          ]}
+                        >
+                          {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               </>
             ) : (
@@ -1004,7 +1059,14 @@ export default function DashboardScreen() {
               if (firstCat) setEditTxCatId(firstCat.id);
             }}
           >
-            <Text style={styles.segmentText}>Gasto</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                editTxType === 'expense' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Gasto
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1015,14 +1077,28 @@ export default function DashboardScreen() {
               if (firstCat) setEditTxCatId(firstCat.id);
             }}
           >
-            <Text style={styles.segmentText}>Ingreso</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                editTxType === 'income' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Ingreso
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.segmentBtn, editTxType === 'transfer' && styles.segmentTransferActive]}
             onPress={() => setEditTxType('transfer')}
           >
-            <Text style={styles.segmentText}>Transferir</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                editTxType === 'transfer' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Transferir
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -1067,43 +1143,68 @@ export default function DashboardScreen() {
           {editTxType === 'transfer' ? 'Cuenta Origen (De dónde salió)' : 'Cuenta / Tarjeta'}
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {sortedAccountsForSelection.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                editTxAccId === acc.id && { borderColor: '#38BDF8', backgroundColor: '#0C4A6E' },
-              ]}
-              onPress={() => setEditTxAccId(acc.id)}
-            >
-              <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {sortedAccountsForSelection.map((acc) => {
+            const isSelected = editTxAccId === acc.id;
+            return (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.chip,
+                  isSelected && {
+                    borderColor: isDark ? '#38BDF8' : '#0284C7',
+                    backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+                  },
+                ]}
+                onPress={() => setEditTxAccId(acc.id)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    isSelected && {
+                      color: isDark ? '#38BDF8' : '#0369A1',
+                      fontWeight: '800',
+                    },
+                  ]}
+                >
+                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {editTxType === 'transfer' ? (
           <>
             <Text style={styles.inputLabel}>Cuenta Destino (A dónde entró)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {sortedAccountsForSelection.map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[
-                    styles.chip,
-                    editTxToAccId === acc.id && {
-                      borderColor: '#4ADE80',
-                      backgroundColor: '#14532D',
-                    },
-                  ]}
-                  onPress={() => setEditTxToAccId(acc.id)}
-                >
-                  <Text style={styles.chipText}>
-                    {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {sortedAccountsForSelection.map((acc) => {
+                const isSelected = editTxToAccId === acc.id;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[
+                      styles.chip,
+                      isSelected && {
+                        borderColor: isDark ? '#4ADE80' : '#16A34A',
+                        backgroundColor: isDark ? '#14532D' : '#DCFCE7',
+                      },
+                    ]}
+                    onPress={() => setEditTxToAccId(acc.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isSelected && {
+                          color: isDark ? '#86EFAC' : '#15803D',
+                          fontWeight: '800',
+                        },
+                      ]}
+                    >
+                      {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </>
         ) : (
@@ -2040,13 +2141,17 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       marginRight: 8,
     },
     monthChipActive: {
-      backgroundColor: isDark ? '#0C382C' : '#083E31',
+      backgroundColor: isDark ? '#0C382C' : '#059669',
       borderColor: '#34D399',
     },
     monthChipText: {
       color: colors.text,
       fontSize: 12,
       fontWeight: '600',
+    },
+    monthChipTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '800',
     },
     filterSummaryBar: {
       backgroundColor: colors.card,
@@ -2120,7 +2225,9 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     segmentExpenseActive: { backgroundColor: '#EF4444' },
     segmentIncomeActive: { backgroundColor: '#22C55E' },
     segmentTransferActive: { backgroundColor: '#0284C7' },
-    segmentText: { color: '#F8FAFC', fontWeight: '700', fontSize: 13 },
+    segmentText: { fontSize: 13 },
+    segmentTextActive: { color: '#FFFFFF', fontWeight: '800' },
+    segmentTextInactive: { color: isDark ? '#94A3B8' : '#475569', fontWeight: '700' },
     inputLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600', marginTop: 10, marginBottom: 6 },
     input: {
       backgroundColor: colors.inputBg,
@@ -2149,13 +2256,13 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
       alignItems: 'center',
     },
-    cancelBtnText: { color: isDark ? '#94A3B8' : '#64748B', fontWeight: '700' },
+    cancelBtnText: { color: isDark ? '#94A3B8' : '#475569', fontWeight: '700' },
     saveBtn: {
       flex: 1,
       paddingVertical: 12,
       borderRadius: 12,
-      backgroundColor: '#38BDF8',
+      backgroundColor: colors.accentLime || '#A7F3D0',
       alignItems: 'center',
     },
-    saveBtnText: { color: '#0F172A', fontWeight: '800' },
+    saveBtnText: { color: colors.accentLimeText || '#064E3B', fontWeight: '800' },
   });

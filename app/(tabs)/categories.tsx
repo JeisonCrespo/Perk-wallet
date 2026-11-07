@@ -20,7 +20,6 @@ import { useFinance } from '../../src/context/FinanceContext';
 import { Category } from '../../src/types/finance';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import {
-  sendTestNotificationNow,
   scheduleDailyExpenseReminder,
   cancelDailyExpenseReminder,
 } from '../../src/services/notificationService';
@@ -62,6 +61,13 @@ export default function SettingsAndCategoriesScreen() {
     importBackupJson,
     lastDriveBackupAt,
     recordDriveBackupTimestamp,
+    isDriveConnected,
+    driveEmail,
+    connectGoogleDrive,
+    disconnectGoogleDrive,
+    autoDriveBackupEnabled,
+    toggleAutoDriveBackup,
+    setHasCompletedOnboarding,
     userProfile,
     updateUserProfile,
     securitySettings,
@@ -360,18 +366,42 @@ export default function SettingsAndCategoriesScreen() {
     await handleSaveReminderTime(h, m, formatted);
   };
 
-  const handleResetZero = () => {
+  const handleConnectDrive = async () => {
+    const targetEmail = userProfile.email || 'jeison@gmail.com';
+    await connectGoogleDrive(targetEmail);
+    Alert.alert('Google Drive Conectado', `Sesión iniciada con éxito en ${targetEmail}.`);
+  };
+
+  const handleDisconnectDrive = () => {
     Alert.alert(
-      'Empezar desde Cero ($0.00)',
-      '¿Seguro que deseas borrar todas las cuentas, préstamos, metas y movimientos de prueba para iniciar la app desde cero?',
+      'Cerrar sesión de Google Drive',
+      '¿Deseas desvincular Google Drive? La copia de seguridad automática quedará pausada hasta que vuelvas a conectar.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Empezar desde 0',
+          text: 'Cerrar Sesión',
+          style: 'destructive',
+          onPress: async () => {
+            await disconnectGoogleDrive();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetZero = () => {
+    Alert.alert(
+      'Restablecer y Empezar de Cero ($0.00)',
+      '¿Seguro que deseas borrar todas las cuentas, préstamos, metas y movimientos de prueba? La app volverá a $0.00 y te mostrará la pantalla de bienvenida para comenzar.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Empezar de Cero',
           style: 'destructive',
           onPress: async () => {
             await resetToZero();
-            Alert.alert('Listo', 'La app quedó en $0.00 lista para tus cuentas reales.');
+            await setHasCompletedOnboarding(false);
+            setShowOnboardingModal(true);
           },
         },
       ]
@@ -431,14 +461,7 @@ export default function SettingsAndCategoriesScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={{ flex: 1 }} onPress={handleOpenEditProfile} activeOpacity={0.7}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.profileName}>{userProfile.name || 'Tu Nombre'}</Text>
-              <View style={styles.profileBadge}>
-                <Text style={styles.profileBadgeText}>
-                  {userProfile.accountType || 'Personal'}
-                </Text>
-              </View>
-            </View>
+            <Text style={styles.profileName}>{userProfile.name || 'Tu Nombre'}</Text>
             <Text style={styles.profileEmail}>{userProfile.email || 'tu.correo@ejemplo.com'}</Text>
             <Text style={styles.profileHint}>Toca para editar nombre y correo ✎</Text>
           </TouchableOpacity>
@@ -529,37 +552,6 @@ export default function SettingsAndCategoriesScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          {/* Probar Notificación Local en Android */}
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={async () => {
-              const ok = await sendTestNotificationNow();
-              if (ok) {
-                Alert.alert(
-                  'Notificación Enviada',
-                  'En 2 segundos verás la alerta en la barra superior de tu teléfono.'
-                );
-              } else {
-                Alert.alert(
-                  'Permiso Denegado',
-                  'Habilita los permisos de notificación de la app en Ajustes de Android.'
-                );
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
-              <Ionicons name="notifications-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Probar Alerta en Android</Text>
-              <Text style={styles.menuRowSub}>Enviar notificación de prueba en 2 segundos</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
         </View>
 
         {/* Grupo 3: Datos, Categorías y Respaldos */}
@@ -585,7 +577,7 @@ export default function SettingsAndCategoriesScreen() {
 
           <View style={styles.menuDivider} />
 
-          {/* Copia de Seguridad */}
+          {/* Copia de Seguridad y Google Drive */}
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => setShowBackupModal(true)}
@@ -597,9 +589,9 @@ export default function SettingsAndCategoriesScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.menuRowTitle}>Copia de Seguridad y Google Drive</Text>
               <Text style={styles.menuRowSub}>
-                {lastDriveBackupAt
-                  ? `Último respaldo: ${lastDriveBackupAt}`
-                  : 'Exportar a Drive o restaurar archivo .json'}
+                {isDriveConnected
+                  ? `Google Drive activo (${driveEmail || userProfile.email || 'Conectado'})`
+                  : 'Desconectado • Toca para gestionar'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -607,32 +599,18 @@ export default function SettingsAndCategoriesScreen() {
 
           <View style={styles.menuDivider} />
 
-          {/* Ver Bienvenida / Get Started */}
-          <TouchableOpacity
-            style={styles.menuRow}
-            onPress={() => setShowOnboardingModal(true)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.iconPill, { backgroundColor: isDark ? '#144637' : '#DCFCE7' }]}>
-              <Ionicons name="rocket-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Ver Bienvenida (Get Started)</Text>
-              <Text style={styles.menuRowSub}>Replay de la animación y presentación</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          {/* Empezar desde Cero */}
+          {/* Restablecer y Empezar de Cero */}
           <TouchableOpacity style={styles.menuRow} onPress={handleResetZero} activeOpacity={0.7}>
             <View style={[styles.iconPill, { backgroundColor: '#FEE2E2' }]}>
               <Ionicons name="trash-bin-outline" size={18} color="#DC2626" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.menuRowTitle, { color: '#DC2626' }]}>Empezar desde Cero ($0.00)</Text>
-              <Text style={styles.menuRowSub}>Borrar movimientos de prueba para ingresar datos reales</Text>
+              <Text style={[styles.menuRowTitle, { color: '#DC2626' }]}>
+                Restablecer y Empezar de Cero ($0.00)
+              </Text>
+              <Text style={styles.menuRowSub}>
+                Borra datos de prueba y abre la pantalla de bienvenida inicial
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </TouchableOpacity>
@@ -972,7 +950,7 @@ export default function SettingsAndCategoriesScreen() {
         </View>
       </Modal>
 
-      {/* --- MODAL: OPCIONES DE COPIA DE SEGURIDAD (CORREGIDO PARA VERSE COMPLETO) --- */}
+      {/* --- MODAL: OPCIONES DE COPIA DE SEGURIDAD Y GOOGLE DRIVE --- */}
       <Modal
         visible={showBackupModal}
         animationType="slide"
@@ -981,41 +959,121 @@ export default function SettingsAndCategoriesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
-            <Text style={styles.modalHeading}>Copia de Seguridad y Respaldo</Text>
+            <Text style={styles.modalHeading}>Google Drive y Copia de Seguridad</Text>
             <Text style={[styles.menuRowSub, { marginBottom: 14 }]}>
-              Guarda tus movimientos en Google Drive o restaura un respaldo en archivo .json.
+              Conecta tu cuenta para respaldar tus cuentas, movimientos y préstamos automáticamente.
             </Text>
 
+            {/* Tarjeta de Estado de Conexión de Google Drive */}
+            <View
+              style={[
+                styles.driveCard,
+                !isDriveConnected && styles.driveDisconnectedCard,
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Ionicons
+                  name={isDriveConnected ? 'cloud-done' : 'cloud-offline-outline'}
+                  size={26}
+                  color={isDriveConnected ? (isDark ? '#34D399' : '#059669') : '#94A3B8'}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '800',
+                      color: isDriveConnected
+                        ? (isDark ? '#A7F3D0' : '#065F46')
+                        : colors.text,
+                    }}
+                  >
+                    {isDriveConnected ? 'Google Drive Conectado' : 'Google Drive Desconectado'}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: isDriveConnected
+                        ? (isDark ? '#6EE7B7' : '#047857')
+                        : colors.textMuted,
+                      marginTop: 2,
+                    }}
+                  >
+                    {isDriveConnected
+                      ? `Cuenta: ${driveEmail || userProfile.email || 'jeison@gmail.com'}`
+                      : 'Inicia sesión para respaldar en tu nube'}
+                  </Text>
+                </View>
+              </View>
+
+              {isDriveConnected ? (
+                <TouchableOpacity
+                  style={styles.driveDisconnectBtn}
+                  onPress={handleDisconnectDrive}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.driveDisconnectBtnText}>Cerrar sesión de Google Drive</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.driveConnectBtn}
+                  onPress={handleConnectDrive}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.driveConnectBtnText}>Conectar con Google Drive</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Opción: Copia de Seguridad Automática al Iniciar y Salir */}
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.menuRowTitle}>Copia de seguridad automática</Text>
+                <Text style={styles.menuRowSub}>
+                  Respaldar al iniciar y al salir de la aplicación
+                </Text>
+              </View>
+              <Switch
+                value={autoDriveBackupEnabled}
+                onValueChange={toggleAutoDriveBackup}
+                trackColor={{ false: '#334155', true: '#34D399' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
             {lastDriveBackupAt && (
-              <View style={styles.lastBackupBox}>
+              <View style={[styles.lastBackupBox, { marginTop: 10 }]}>
                 <Text style={styles.lastBackupPill}>
                   ✓ Último respaldo guardado: {lastDriveBackupAt}
                 </Text>
               </View>
             )}
 
-            {/* Botón 1: Guardar en Google Drive */}
-            <TouchableOpacity
-              style={styles.fullWidthPrimaryBtn}
-              onPress={handleBackupToGoogleDrive}
-            >
-              <Ionicons name="cloud-upload" size={18} color="#064E3B" />
-              <Text style={styles.fullWidthPrimaryBtnText}>Guardar en Google Drive</Text>
-            </TouchableOpacity>
+            <View style={{ marginTop: 12, gap: 10 }}>
+              {/* Botón 1: Hacer Copia de Seguridad ahora */}
+              <TouchableOpacity
+                style={styles.fullWidthPrimaryBtn}
+                onPress={handleBackupToGoogleDrive}
+              >
+                <Ionicons name="cloud-upload" size={18} color="#064E3B" />
+                <Text style={styles.fullWidthPrimaryBtnText}>
+                  {isDriveConnected ? 'Hacer Copia de Seguridad ahora' : 'Exportar Copia (.json)'}
+                </Text>
+              </TouchableOpacity>
 
-            {/* Botón 2: Restaurar Respaldo desde JSON */}
-            <TouchableOpacity
-              style={styles.fullWidthSecondaryBtn}
-              onPress={() => {
-                setShowBackupModal(false);
-                setShowRestoreJsonModal(true);
-              }}
-            >
-              <Ionicons name="cloud-download-outline" size={18} color={colors.text} />
-              <Text style={[styles.fullWidthSecondaryBtnText, { color: colors.text }]}>
-                Restaurar Respaldo (.json)
-              </Text>
-            </TouchableOpacity>
+              {/* Botón 2: Restaurar Respaldo desde JSON */}
+              <TouchableOpacity
+                style={styles.fullWidthSecondaryBtn}
+                onPress={() => {
+                  setShowBackupModal(false);
+                  setShowRestoreJsonModal(true);
+                }}
+              >
+                <Ionicons name="cloud-download-outline" size={18} color={colors.text} />
+                <Text style={[styles.fullWidthSecondaryBtnText, { color: colors.text }]}>
+                  Restaurar Respaldo (.json)
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={[styles.cancelBtnFull, { marginTop: 14 }]}
@@ -1565,6 +1623,44 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     },
     lastBackupPill: {
       color: '#10B981',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    driveCard: {
+      backgroundColor: isDark ? '#062B20' : '#ECFDF5',
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: isDark ? '#0C4E3D' : '#A7F3D0',
+      marginBottom: 12,
+    },
+    driveDisconnectedCard: {
+      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+      borderColor: isDark ? '#334155' : '#CBD5E1',
+    },
+    driveDisconnectBtn: {
+      marginTop: 8,
+      paddingVertical: 7,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: isDark ? '#3B1212' : '#FEE2E2',
+      alignSelf: 'flex-start',
+    },
+    driveDisconnectBtnText: {
+      color: '#DC2626',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    driveConnectBtn: {
+      marginTop: 8,
+      paddingVertical: 7,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: '#10B981',
+      alignSelf: 'flex-start',
+    },
+    driveConnectBtnText: {
+      color: '#FFFFFF',
       fontSize: 12,
       fontWeight: '700',
     },

@@ -528,7 +528,15 @@ export default function AnalyticsAndBudgetsScreen() {
                 ]}
                 onPress={() => setSelectedType('expense')}
               >
-                <Text style={styles.toggleText} numberOfLines={1}>💸 Gastos</Text>
+                <Text
+                  style={[
+                    styles.toggleText,
+                    selectedType === 'expense' ? styles.toggleTextActive : styles.toggleTextInactive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  💸 Gastos
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -538,7 +546,15 @@ export default function AnalyticsAndBudgetsScreen() {
                 ]}
                 onPress={() => setSelectedType('income')}
               >
-                <Text style={styles.toggleText} numberOfLines={1}>💰 Ingresos</Text>
+                <Text
+                  style={[
+                    styles.toggleText,
+                    selectedType === 'income' ? styles.toggleTextActive : styles.toggleTextInactive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  💰 Ingresos
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -1062,9 +1078,11 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: colors.cardBorder,
       minWidth: 0,
     },
-    toggleExpenseActive: { backgroundColor: '#7F1D1D', borderColor: '#EF4444' },
-    toggleIncomeActive: { backgroundColor: '#14532D', borderColor: '#22C55E' },
-    toggleText: { color: '#F8FAFC', fontSize: 12, fontWeight: '700' },
+    toggleExpenseActive: { backgroundColor: '#EF4444', borderColor: '#DC2626' },
+    toggleIncomeActive: { backgroundColor: '#10B981', borderColor: '#059669' },
+    toggleText: { fontSize: 12 },
+    toggleTextActive: { color: '#FFFFFF', fontWeight: '800' },
+    toggleTextInactive: { color: colors.textSecondary, fontWeight: '700' },
     chartCard: {
       backgroundColor: colors.card,
       borderRadius: 20,

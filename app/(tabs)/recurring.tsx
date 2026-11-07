@@ -2146,7 +2146,14 @@ export default function ControlScreen() {
             ]}
             onPress={() => setLoanDirection('lent')}
           >
-            <Text style={styles.segmentText}>Presté Dinero (Me deben)</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                loanDirection === 'lent' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Presté Dinero (Me deben)
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -2156,7 +2163,14 @@ export default function ControlScreen() {
             ]}
             onPress={() => setLoanDirection('borrowed')}
           >
-            <Text style={styles.segmentText}>Pedí Prestado (Yo debo)</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                loanDirection === 'borrowed' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Pedí Prestado (Yo debo)
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -2346,7 +2360,14 @@ export default function ControlScreen() {
               if (first) setSelectedCategoryId(first.id);
             }}
           >
-            <Text style={styles.segmentText}>Gasto Recurrente</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                type === 'expense' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Gasto Recurrente
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -2357,7 +2378,14 @@ export default function ControlScreen() {
               if (first) setSelectedCategoryId(first.id);
             }}
           >
-            <Text style={styles.segmentText}>Ingreso Recurrente</Text>
+            <Text
+              style={[
+                styles.segmentText,
+                type === 'income' ? styles.segmentTextActive : styles.segmentTextInactive,
+              ]}
+            >
+              Ingreso Recurrente
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -2840,7 +2868,9 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     },
     segmentExpenseActive: { backgroundColor: '#EF4444' },
     segmentIncomeActive: { backgroundColor: '#22C55E' },
-    segmentText: { color: '#F8FAFC', fontWeight: '700', fontSize: 13 },
+    segmentText: { fontSize: 13 },
+    segmentTextActive: { color: '#FFFFFF', fontWeight: '800' },
+    segmentTextInactive: { color: isDark ? '#94A3B8' : '#475569', fontWeight: '700' },
     brandQuickChip: {
       flexDirection: 'row',
       alignItems: 'center',

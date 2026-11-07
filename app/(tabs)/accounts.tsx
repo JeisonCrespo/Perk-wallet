@@ -547,7 +547,7 @@ export default function AccountsScreen() {
             style={styles.transferBtn}
             onPress={openTransferModal}
           >
-            <Ionicons name="swap-horizontal-outline" size={18} color="#38BDF8" />
+            <Ionicons name="swap-horizontal-outline" size={18} color={isDark ? '#A7F3D0' : '#064E3B'} />
             <Text style={styles.transferBtnText}>Pasar Dinero</Text>
           </TouchableOpacity>
 
@@ -558,7 +558,7 @@ export default function AccountsScreen() {
               setShowManualModal(true);
             }}
           >
-            <Ionicons name="add-outline" size={20} color="#F8FAFC" />
+            <Ionicons name="add-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -779,21 +779,34 @@ export default function AccountsScreen() {
 
         <Text style={styles.inputLabel}>Cuenta por defecto (si la alerta no dice el banco)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                smartImportAccId === acc.id && {
-                  borderColor: '#4ADE80',
-                  backgroundColor: '#14532D',
-                },
-              ]}
-              onPress={() => setSmartImportAccId(acc.id)}
-            >
-              <Text style={styles.chipText}>{acc.name}</Text>
-            </TouchableOpacity>
-          ))}
+          {accounts.map((acc) => {
+            const isSelected = smartImportAccId === acc.id;
+            return (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.chip,
+                  isSelected && {
+                    borderColor: isDark ? '#4ADE80' : '#16A34A',
+                    backgroundColor: isDark ? '#14532D' : '#DCFCE7',
+                  },
+                ]}
+                onPress={() => setSmartImportAccId(acc.id)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    isSelected && {
+                      color: isDark ? '#86EFAC' : '#15803D',
+                      fontWeight: '800',
+                    },
+                  ]}
+                >
+                  {acc.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
@@ -934,38 +947,66 @@ export default function AccountsScreen() {
 
         <Text style={styles.inputLabel}>De qué cuenta sale (Origen)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                fromAccId === acc.id && { borderColor: '#38BDF8', backgroundColor: '#0C4A6E' },
-              ]}
-              onPress={() => setFromAccId(acc.id)}
-            >
-              <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(2)})
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {accounts.map((acc) => {
+            const isSelected = fromAccId === acc.id;
+            return (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.chip,
+                  isSelected && {
+                    borderColor: isDark ? '#38BDF8' : '#0284C7',
+                    backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+                  },
+                ]}
+                onPress={() => setFromAccId(acc.id)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    isSelected && {
+                      color: isDark ? '#38BDF8' : '#0369A1',
+                      fontWeight: '800',
+                    },
+                  ]}
+                >
+                  {acc.name} (${acc.balance.toFixed(2)})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         <Text style={styles.inputLabel}>A qué cuenta entra o qué tarjeta paga (Destino)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                toAccId === acc.id && { borderColor: '#4ADE80', backgroundColor: '#14532D' },
-              ]}
-              onPress={() => setToAccId(acc.id)}
-            >
-              <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(2)})
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {accounts.map((acc) => {
+            const isSelected = toAccId === acc.id;
+            return (
+              <TouchableOpacity
+                key={acc.id}
+                style={[
+                  styles.chip,
+                  isSelected && {
+                    borderColor: isDark ? '#4ADE80' : '#16A34A',
+                    backgroundColor: isDark ? '#14532D' : '#DCFCE7',
+                  },
+                ]}
+                onPress={() => setToAccId(acc.id)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    isSelected && {
+                      color: isDark ? '#86EFAC' : '#15803D',
+                      fontWeight: '800',
+                    },
+                  ]}
+                >
+                  {acc.name} (${acc.balance.toFixed(2)})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1070,7 +1111,14 @@ export default function AccountsScreen() {
             ]}
             onPress={() => handleSelectUSBankTemplate(selectedBankTemplate, 'checking')}
           >
-            <Text style={styles.typeSelectText}>Checking / Balance</Text>
+            <Text
+              style={[
+                styles.typeSelectText,
+                usBankAccountType === 'checking' && styles.typeSelectTextActive,
+              ]}
+            >
+              Checking / Balance
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1080,7 +1128,14 @@ export default function AccountsScreen() {
             ]}
             onPress={() => handleSelectUSBankTemplate(selectedBankTemplate, 'savings')}
           >
-            <Text style={styles.typeSelectText}>Savings (Ahorro)</Text>
+            <Text
+              style={[
+                styles.typeSelectText,
+                usBankAccountType === 'savings' && styles.typeSelectTextActive,
+              ]}
+            >
+              Savings (Ahorro)
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1090,7 +1145,14 @@ export default function AccountsScreen() {
             ]}
             onPress={() => handleSelectUSBankTemplate(selectedBankTemplate, 'credit')}
           >
-            <Text style={styles.typeSelectText}>Tarjeta Crédito</Text>
+            <Text
+              style={[
+                styles.typeSelectText,
+                usBankAccountType === 'credit' && styles.typeSelectTextActive,
+              ]}
+            >
+              Tarjeta Crédito
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -1625,10 +1687,11 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: isDark ? '#334155' : '#CBD5E1',
     },
     typeSelectBtnActive: {
-      backgroundColor: '#0369A1',
-      borderColor: '#38BDF8',
+      backgroundColor: isDark ? '#0C382C' : '#059669',
+      borderColor: '#34D399',
     },
     typeSelectText: { color: colors.text, fontSize: 11, fontWeight: '700' },
+    typeSelectTextActive: { color: '#FFFFFF', fontWeight: '800' },
     usBankPill: {
       flexDirection: 'row',
       alignItems: 'center',

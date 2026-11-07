@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   BankAccount,
   Category,
@@ -206,7 +208,14 @@ interface FinanceContextType {
   setHasCompletedOnboarding: (completed: boolean) => Promise<void>;
   loginUser: (name: string, email: string) => Promise<void>;
   logoutUser: () => Promise<void>;
-  // Respaldo y Reinicio
+  // Respaldo, Google Drive y Reinicio
+  isDriveConnected: boolean;
+  driveEmail: string;
+  connectGoogleDrive: (email?: string) => Promise<void>;
+  disconnectGoogleDrive: () => Promise<void>;
+  autoDriveBackupEnabled: boolean;
+  toggleAutoDriveBackup: (enabled: boolean) => Promise<void>;
+  performSilentBackup: () => Promise<void>;
   resetToZero: () => Promise<void>;
   exportBackupJson: () => string;
   importBackupJson: (rawJson: string) => Promise<void>;
@@ -243,6 +252,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loans, setLoans] = useState<LoanRecord[]>([]);
   const [installmentDebts, setInstallmentDebts] = useState<InstallmentDebt[]>([]);
   const [lastDriveBackupAt, setLastDriveBackupAtState] = useState<string | null>(null);
+  const [isDriveConnected, setIsDriveConnected] = useState(true);
+  const [driveEmail, setDriveEmail] = useState('');
+  const [autoDriveBackupEnabled, setAutoDriveBackupEnabled] = useState(true);
   const [hideOtherMoney, setHideOtherMoney] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [securitySettings, setSecuritySettings] = useState<SecuritySettings>(DEFAULT_SECURITY_SETTINGS);
@@ -259,6 +271,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
       if (savedDriveBackup?.value) {
         setLastDriveBackupAtState(savedDriveBackup.value);
+      }
+
+      const savedDriveConn = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'drive_connected'"
+      );
+      if (savedDriveConn) {
+        setIsDriveConnected(savedDriveConn.value === '1');
+      } else {
+        setIsDriveConnected(true);
+      }
+
+      const savedDriveEmail = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'drive_email'"
+      );
+      if (savedDriveEmail?.value) {
+        setDriveEmail(savedDriveEmail.value);
+      }
+
+      const savedAutoBackup = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'auto_drive_backup_enabled'"
+      );
+      if (savedAutoBackup) {
+        setAutoDriveBackupEnabled(savedAutoBackup.value === '1');
       }
 
       const savedHideMoney = await db.getFirstAsync<{ value: string }>(
@@ -1763,6 +1798,60 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await refreshAll();
   };
 
+  const connectGoogleDrive = useCallback(async (email?: string) => {
+    const chosenEmail = email || userProfile.email || 'jeison@gmail.com';
+    setIsDriveConnected(true);
+    setDriveEmail(chosenEmail);
+    const db = await getDb();
+    await db.runAsync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('drive_connected', '1')");
+    await db.runAsync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('drive_email', ?)", [chosenEmail]);
+  }, [userProfile.email]);
+
+  const disconnectGoogleDrive = useCallback(async () => {
+    setIsDriveConnected(false);
+    const db = await getDb();
+    await db.runAsync("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('drive_connected', '0')");
+  }, []);
+
+  const toggleAutoDriveBackup = useCallback(async (enabled: boolean) => {
+    setAutoDriveBackupEnabled(enabled);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('auto_drive_backup_enabled', ?)",
+      [enabled ? '1' : '0']
+    );
+  }, []);
+
+  const performSilentBackup = useCallback(async () => {
+    try {
+      const json = exportBackupJson();
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+      if (baseDir) {
+        const fileUri = `${baseDir}finanzas-usa-autobackup.json`;
+        await FileSystem.writeAsStringAsync(fileUri, json, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+      }
+      await recordDriveBackupTimestamp();
+    } catch (err) {
+      console.log('Silent auto backup skipped:', err);
+    }
+  }, [exportBackupJson]);
+
+  // Auto-backup al iniciar la app o al pasar a segundo plano / salir
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (autoDriveBackupEnabled && isDriveConnected) {
+        if (nextAppState === 'active' || nextAppState === 'background') {
+          performSilentBackup();
+        }
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [autoDriveBackupEnabled, isDriveConnected, performSilentBackup]);
+
   const getCategoryBreakdown = useCallback(
     (
       type: 'expense' | 'income',
@@ -1890,6 +1979,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setHasCompletedOnboarding,
         loginUser,
         logoutUser,
+        isDriveConnected,
+        driveEmail,
+        connectGoogleDrive,
+        disconnectGoogleDrive,
+        autoDriveBackupEnabled,
+        toggleAutoDriveBackup,
+        performSilentBackup,
         resetToZero,
         exportBackupJson,
         importBackupJson,
