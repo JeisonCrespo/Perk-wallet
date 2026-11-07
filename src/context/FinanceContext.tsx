@@ -61,6 +61,7 @@ interface FinanceContextType {
   hideOtherMoney: boolean;
   toggleHideOtherMoney: () => Promise<void>;
   isOtherPersonAccount: (account: BankAccount) => boolean;
+  isOwnSavingsAccount: (account: BankAccount) => boolean;
   // Cuentas y Tarjetas de Crédito
   toggleAccountIncludeInTotal: (accountId: string) => Promise<void>;
   addManualAccount: (account: Omit<BankAccount, 'id' | 'isPlaidConnected'>) => Promise<void>;
@@ -413,9 +414,25 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const isOtherPersonAccount = useCallback((account: BankAccount): boolean => {
     if (!account.ownerName || !account.ownerName.trim()) return false;
     const clean = account.ownerName.trim().toLowerCase();
-    const ownWords = ['yo', 'mío', 'mio', 'mi dinero', 'personal', 'propio', 'jeison', 'me', 'propia', 'mía', 'mia'];
+    const ownWords = ['yo', 'mío', 'mio', 'mi dinero', 'personal', 'propio', 'jeison', 'me', 'propia', 'mía', 'mia', 'mío (ahorro)', 'mio (ahorro)'];
     return !ownWords.includes(clean);
   }, []);
+
+  // Helper para saber si una cuenta corresponde a Ahorro Propio (por tipo o porque el dueño se marcó como Mío / Ahorro)
+  const isOwnSavingsAccount = useCallback(
+    (account: BankAccount): boolean => {
+      if (isOtherPersonAccount(account)) return false;
+      if (account.type === 'savings') return true;
+      if (account.ownerName) {
+        const clean = account.ownerName.trim().toLowerCase();
+        if (clean.includes('mío') || clean.includes('mio') || clean.includes('ahorro') || clean.includes('personal') || clean.includes('propio')) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [isOtherPersonAccount]
+  );
 
   // Dinero total de otras personas guardado o administrado (se suman entre ellos, nunca con el saldo propio)
   const otherPeopleTotalBalance = useMemo(() => {
@@ -424,20 +441,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .reduce((sum, a) => sum + a.balance, 0);
   }, [accounts, isOtherPersonAccount]);
 
-  // Dinero de Ahorro Propio (Cuentas de tipo savings que pertenecen al usuario)
+  // Dinero de Ahorro Propio: Cuentas de tipo savings O donde se especificó "Mío / Ahorro"
   const ownSavingsBalance = useMemo(() => {
     return accounts
-      .filter((a) => !isOtherPersonAccount(a) && a.type === 'savings')
+      .filter((a) => isOwnSavingsAccount(a) && a.type !== 'credit')
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOtherPersonAccount]);
+  }, [accounts, isOwnSavingsAccount]);
 
-  // Saldo Propio Disponible (Checking / efectivo propio incluido para gasto diario)
-  // No incluye ahorros propios (que se muestran en su propia categoría) ni dinero ajeno
+  // Saldo Propio Disponible (Checking / efectivo propio para gasto diario)
+  // Excluye dinero ajeno Y excluye cualquier cuenta que sea de ahorro o marcada como Mío/Ahorro
   const includedTotalBalance = useMemo(() => {
     return accounts
-      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a) && a.type !== 'savings' && a.type !== 'credit')
+      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a) && !isOwnSavingsAccount(a) && a.type !== 'credit')
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOtherPersonAccount]);
+  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
 
   // Cuentas separadas propias (excluidas del saldo de gasto diario, pero propias)
   const excludedTotalBalance = useMemo(() => {
@@ -1706,6 +1723,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         hideOtherMoney,
         toggleHideOtherMoney,
         isOtherPersonAccount,
+        isOwnSavingsAccount,
         toggleAccountIncludeInTotal,
         addManualAccount,
         connectCustomUSBank,

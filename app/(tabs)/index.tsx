@@ -10,6 +10,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFinance } from '../../src/context/FinanceContext';
 import { Transaction, TransactionType } from '../../src/types/finance';
@@ -19,6 +20,7 @@ import { DateField } from '../../src/components/DatePickerModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const {
@@ -26,6 +28,7 @@ export default function DashboardScreen() {
     categories,
     transactions,
     recurringItems,
+    savingsGoals,
     includedTotalBalance,
     ownSavingsBalance,
     excludedTotalBalance,
@@ -34,6 +37,7 @@ export default function DashboardScreen() {
     hideOtherMoney,
     toggleHideOtherMoney,
     isOtherPersonAccount,
+    isOwnSavingsAccount,
     addTransaction,
     updateTransaction,
     importBankMovementsText,
@@ -210,15 +214,51 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Tarjeta de Saldo Principal */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Encabezado superior con Avatar, Saludo y Notificación (Estilo Mockup) */}
+        <View style={styles.topProfileBar}>
+          <View style={styles.profileInfoRow}>
+            <View style={styles.avatarCircle}>
+              <Ionicons name="person" size={18} color="#064E3B" />
+            </View>
+            <View style={{ marginLeft: 10 }}>
+              <Text style={styles.greetingText}>Hola, de nuevo</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                <Text style={styles.profileNameText}>Jeison</Text>
+                <View style={styles.premiumBadge}>
+                  <Text style={styles.premiumBadgeText}>Personal ▾</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => router.push('/(tabs)/categories')}
+          >
+            <Ionicons name="notifications-outline" size={20} color={isDark ? '#F0FDF4' : '#064E3B'} />
+            {dueRecurring.length > 0 && <View style={styles.bellDot} />}
+          </TouchableOpacity>
+        </View>
+
+        {/* Tarjeta de Saldo Principal Estilo Emerald Mockup */}
         <View style={styles.heroCard}>
           <View style={styles.heroHeaderRow}>
-            <Text style={styles.heroLabel} numberOfLines={1}>SALDO DISPONIBLE</Text>
-            <View style={styles.badgeIncluded}>
-              <Text style={styles.badgeIncludedText} numberOfLines={1}>
-                {accounts.filter((a) => a.includeInTotal && !isOtherPersonAccount(a)).length} cuentas
-              </Text>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              onPress={toggleHideOtherMoney}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.heroLabel}>Total Balance</Text>
+              <Ionicons
+                name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
+                size={16}
+                color="#A7F3D0"
+              />
+            </TouchableOpacity>
+
+            <View style={styles.currencyBadge}>
+              <Text style={styles.currencyBadgeText}>USD ▾</Text>
             </View>
           </View>
 
@@ -226,10 +266,44 @@ export default function DashboardScreen() {
             ${includedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
 
+          {/* Botones de Acción Rápida: + Registrar, ↗ Pasar (Botón Verde Lima Destacado), 🐜 Hormiga */}
+          <View style={styles.heroActionRow}>
+            <TouchableOpacity
+              style={styles.heroAddBtn}
+              onPress={() => openNewTransactionModal('expense')}
+            >
+              <Ionicons name="add" size={17} color="#F0FDF4" />
+              <Text style={styles.heroAddBtnText}>Registrar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroTransferBtn}
+              onPress={() => openNewTransactionModal('transfer')}
+            >
+              <Ionicons name="arrow-up-outline" size={16} color="#064E3B" style={{ transform: [{ rotate: '45deg' }] }} />
+              <Text style={styles.heroTransferBtnText}>Pasar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroMoreBtn}
+              onPress={() => {
+                setAntAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
+                setAntAmount('');
+                setAntPreset('☕ Café / Starbucks');
+                setAntCustomDesc('');
+                setShowAntModal(true);
+              }}
+            >
+              <Text style={{ fontSize: 13 }}>🐜</Text>
+              <Text style={styles.heroMoreBtnText}>Hormiga</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Desglose de Sub-balances: Mis Ahorros, Dinero Ajeno, Patrimonio */}
           <View style={styles.subBalancesRow}>
             <View style={styles.subBalanceBox}>
               <Text style={styles.subBalanceLabel} numberOfLines={1}>Mis Ahorros</Text>
-              <Text style={[styles.subBalanceValue, { color: '#38BDF8' }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[styles.subBalanceValue, { color: '#6EE7B7' }]} numberOfLines={1} adjustsFontSizeToFit>
                 ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
@@ -243,8 +317,8 @@ export default function DashboardScreen() {
                 <Text style={styles.subBalanceLabel} numberOfLines={1}>Dinero Ajeno</Text>
                 <Ionicons
                   name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
-                  size={13}
-                  color={colors.textMuted}
+                  size={12}
+                  color="#A7F3D0"
                 />
               </View>
               <Text style={styles.subBalanceValue} numberOfLines={1} adjustsFontSizeToFit>
@@ -255,23 +329,16 @@ export default function DashboardScreen() {
             </TouchableOpacity>
             <View style={styles.subBalanceDivider} />
             <View style={styles.subBalanceBox}>
-              <Text style={styles.subBalanceLabel} numberOfLines={1}>Patrimonio Neto</Text>
-              <Text style={[styles.subBalanceValue, { color: '#4ADE80' }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={styles.subBalanceLabel} numberOfLines={1}>Patrimonio</Text>
+              <Text style={[styles.subBalanceValue, { color: '#F0FDF4' }]} numberOfLines={1} adjustsFontSizeToFit>
                 ${netWorthBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             </View>
           </View>
 
-          {/* Desglose rápido por dueño de cuentas separadas / dinero ajeno (NO sumado al patrimonio) */}
+          {/* Desglose rápido por dueño de cuentas separadas / dinero ajeno */}
           {accounts.some((a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName)) && (
-            <View
-              style={{
-                marginTop: 12,
-                paddingTop: 10,
-                borderTopWidth: 1,
-                borderTopColor: isDark ? '#1E293B' : '#E2E8F0',
-              }}
-            >
+            <View style={styles.separatedBoxInHero}>
               <TouchableOpacity
                 onPress={toggleHideOtherMoney}
                 activeOpacity={0.7}
@@ -279,31 +346,19 @@ export default function DashboardScreen() {
                   flexDirection: 'row',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: hideOtherMoney ? 2 : 6,
+                  marginBottom: hideOtherMoney ? 0 : 6,
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
-                  <Text
-                    style={{
-                      color: isDark ? '#C084FC' : '#7C3AED',
-                      fontSize: 11,
-                      fontWeight: '700',
-                    }}
-                    numberOfLines={1}
-                  >
-                    👤 Dinero ajeno / Cuentas separadas:
+                  <Text style={styles.separatedTitleText} numberOfLines={1}>
+                    👤 Cuentas Separadas / Dinero Ajeno:
                   </Text>
-                  <Ionicons
-                    name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
-                    size={15}
-                    color={isDark ? '#C084FC' : '#7C3AED'}
-                  />
-                  <Text style={{ color: isDark ? '#A78BFA' : '#7C3AED', fontSize: 11, fontWeight: '700' }}>
+                  <Text style={styles.separatedBadgeText}>
                     {hideOtherMoney ? '(Oculto)' : ''}
                   </Text>
                 </View>
                 {otherPeopleTotalBalance > 0 && (
-                  <Text style={{ color: isDark ? '#E9D5FF' : '#5B21B6', fontSize: 11, fontWeight: '800' }}>
+                  <Text style={styles.separatedSumText}>
                     {hideOtherMoney
                       ? '••••••'
                       : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
@@ -312,29 +367,14 @@ export default function DashboardScreen() {
               </TouchableOpacity>
 
               {!hideOtherMoney && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                   {accounts
                     .filter((a) => (!a.includeInTotal && a.type !== 'credit') || Boolean(a.ownerName))
                     .map((sep) => (
-                      <View
-                        key={sep.id}
-                        style={{
-                          backgroundColor: isDark ? '#1E1B4B' : '#F5F3FF',
-                          borderWidth: 1,
-                          borderColor: isDark ? '#4C1D95' : '#DDD6FE',
-                          borderRadius: 8,
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          maxWidth: '100%',
-                        }}
-                      >
-                        <Text
-                          style={{ color: isDark ? '#E9D5FF' : '#6D28D9', fontSize: 11, fontWeight: '700' }}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
+                      <View key={sep.id} style={styles.separatedPill}>
+                        <Text style={styles.separatedPillText} numberOfLines={1} ellipsizeMode="tail">
                           {sep.ownerName ? `${sep.ownerName}: ` : `${sep.name}: `}
-                          <Text style={{ color: isDark ? '#F8FAFC' : '#1E293B', fontWeight: '800' }}>
+                          <Text style={{ fontWeight: '800' }}>
                             ${sep.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </Text>
                         </Text>
@@ -344,120 +384,141 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
+        </View>
 
-          <View style={styles.quickActionRow}>
-            <TouchableOpacity
-              style={[
-                styles.transferQuickBtn,
-                {
-                  backgroundColor: isDark ? '#451A03' : '#FEF3C7',
-                  borderColor: isDark ? '#F59E0B' : '#FCD34D',
+        {/* Quick Access (Accesos Rápidos en Cuadrícula 2x4 Estilo Mockup) */}
+        <View style={styles.quickAccessSection}>
+          <Text style={styles.quickAccessTitle}>Quick Access</Text>
+          <View style={styles.gridContainer}>
+            {[
+              {
+                id: 'wallet',
+                label: 'Billetera',
+                icon: 'wallet-outline',
+                action: () => {
+                  setGWalletAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
+                  setGWalletAmount('');
+                  setGWalletMerchant('');
+                  setGWalletText('');
+                  setShowGWalletModal(true);
                 },
-              ]}
-              onPress={() => {
-                setAntAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
-                setAntAmount('');
-                setAntPreset('☕ Café / Starbucks');
-                setAntCustomDesc('');
-                setShowAntModal(true);
-              }}
-            >
-              <Text style={{ fontSize: 12 }}>🐜</Text>
-              <Text
-                style={[
-                  styles.transferQuickText,
-                  { color: isDark ? '#FDE68A' : '#92400E' },
-                ]}
-                numberOfLines={1}
+              },
+              {
+                id: 'accounts',
+                label: 'Bancos',
+                icon: 'card-outline',
+                action: () => router.push('/(tabs)/accounts'),
+              },
+              {
+                id: 'recurring',
+                label: 'Recurrentes',
+                icon: 'repeat-outline',
+                action: () => router.push('/(tabs)/recurring'),
+              },
+              {
+                id: 'debts',
+                label: 'Cuotas',
+                icon: 'layers-outline',
+                action: () => router.push('/(tabs)/recurring'),
+              },
+              {
+                id: 'loans',
+                label: 'Préstamos',
+                icon: 'people-outline',
+                action: () => router.push('/(tabs)/recurring'),
+              },
+              {
+                id: 'goals',
+                label: 'Metas',
+                icon: 'save-outline',
+                action: () => router.push('/(tabs)/recurring'),
+              },
+              {
+                id: 'budget',
+                label: 'Presupuesto',
+                icon: 'pie-chart-outline',
+                action: () => router.push('/(tabs)/analytics'),
+              },
+              {
+                id: 'settings',
+                label: 'Ajustes',
+                icon: 'settings-outline',
+                action: () => router.push('/(tabs)/categories'),
+              },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.gridTile}
+                onPress={item.action}
+                activeOpacity={0.7}
               >
-                Hormiga
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.transferQuickBtn,
-                {
-                  backgroundColor: isDark ? '#052E16' : '#DCFCE7',
-                  borderColor: isDark ? '#22C55E' : '#86EFAC',
-                },
-              ]}
-              onPress={() => {
-                setGWalletAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
-                setGWalletAmount('');
-                setGWalletMerchant('');
-                setGWalletText('');
-                setShowGWalletModal(true);
-              }}
-            >
-              <Ionicons name="logo-google" size={13} color={isDark ? '#4ADE80' : '#15803D'} />
-              <Text
-                style={[
-                  styles.transferQuickText,
-                  { color: isDark ? '#4ADE80' : '#15803D' },
-                ]}
-                numberOfLines={1}
-              >
-                Billetera
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.transferQuickBtn}
-              onPress={() => openNewTransactionModal('transfer')}
-            >
-              <Ionicons name="swap-horizontal-outline" size={14} color="#38BDF8" />
-              <Text style={styles.transferQuickText} numberOfLines={1}>
-                Pasar
-              </Text>
-            </TouchableOpacity>
+                <View style={styles.gridTileIconBox}>
+                  <Ionicons name={item.icon as any} size={20} color={isDark ? '#34D399' : '#064E3B'} />
+                </View>
+                <Text style={styles.gridTileLabel} numberOfLines={1}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Radar de Gastos Hormiga del Mes 🐜 */}
-        <View
-          style={{
-            backgroundColor: isDark ? '#1C1917' : '#FEF3C7',
-            borderRadius: 16,
-            padding: 13,
-            borderWidth: 1,
-            borderColor: isDark ? '#78350F' : '#FDE68A',
-            marginBottom: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
+        {/* Banner Promocional / Insight Financiero Estilo Mockup "Invest Smarter, Earn Better" */}
+        <View style={styles.promoCard}>
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: isDark ? '#FDE68A' : '#92400E', fontSize: 13, fontWeight: '800' }}>
-              🐜 Radar de Gastos Hormiga (Mes actual)
-            </Text>
-            <Text style={{ color: isDark ? '#D6D3D1' : '#78350F', fontSize: 11, marginTop: 2 }}>
+            <Text style={styles.promoCardBadge}>CONTROL INTELIGENTE</Text>
+            <Text style={styles.promoCardTitle}>Radar & Runway Financiero</Text>
+            <Text style={styles.promoCardSub}>
               {antExpensesThisMonth.length === 0
-                ? 'Aún no registras cafés, snacks ni antojos este mes.'
-                : `${antExpensesThisMonth.length} antojo(s) este mes • Total acumulado: $${antMonthTotal.toFixed(2)}`}
+                ? 'Controla fugas de dinero hormiga y proyecta tus días de supervivencia.'
+                : `${antExpensesThisMonth.length} gasto(s) hormiga anotado(s) este mes ($${antMonthTotal.toFixed(2)}).`}
             </Text>
+            <TouchableOpacity
+              style={styles.promoExploreBtn}
+              onPress={() => router.push('/(tabs)/analytics')}
+            >
+              <Text style={styles.promoExploreBtnText}>Ver Presupuesto ↗</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={{
-              backgroundColor: '#F59E0B',
-              paddingHorizontal: 11,
-              paddingVertical: 7,
-              borderRadius: 9,
-            }}
-            onPress={() => {
-              setAntAccId(sortedAccountsForSelection[0]?.id || accounts[0]?.id || '');
-              setAntAmount('');
-              setAntPreset('☕ Café / Starbucks');
-              setAntCustomDesc('');
-              setShowAntModal(true);
-            }}
-          >
-            <Text style={{ color: '#451A03', fontSize: 11, fontWeight: '800' }}>
-              + Anotar 🐜
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.promoGraphicCircle}>
+            <Ionicons name="trending-up" size={32} color="#A7F3D0" />
+          </View>
         </View>
+
+        {/* My Goals / Metas de Ahorro Progresivas Estilo Mockup */}
+        {savingsGoals.length > 0 && (
+          <View style={styles.goalsSection}>
+            <View style={styles.sectionHeaderSpread}>
+              <Text style={styles.sectionTitle}>My Goals</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/recurring')}>
+                <Text style={styles.viewAllText}>Ver todas ↗</Text>
+              </TouchableOpacity>
+            </View>
+
+            {savingsGoals.slice(0, 2).map((goal) => {
+              const pct = goal.targetAmount > 0 ? Math.min(100, (goal.savedAmount / goal.targetAmount) * 100) : 0;
+              return (
+                <View key={goal.id} style={styles.goalCard}>
+                  <View style={styles.goalTopRow}>
+                    <View style={styles.goalIconCircle}>
+                      <Ionicons name="leaf-outline" size={18} color="#064E3B" />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.goalTitle}>{goal.title}</Text>
+                      <Text style={styles.goalSub}>
+                        ${goal.savedAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })} / ${goal.targetAmount.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                      </Text>
+                    </View>
+                    <Text style={styles.goalPctText}>{pct.toFixed(0)}%</Text>
+                  </View>
+                  <View style={styles.goalProgressBarBg}>
+                    <View style={[styles.goalProgressBarFill, { width: `${pct}%` }]} />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Banner de Recurrentes Pendientes de Confirmación Manual */}
         {dueRecurring.length > 0 && (
@@ -1529,12 +1590,74 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     scrollContent: { padding: 16, paddingBottom: 40 },
-    heroCard: {
-      backgroundColor: colors.card,
+    topProfileBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    profileInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    avatarCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: '#A7F3D0',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: '#34D399',
+    },
+    greetingText: {
+      color: isDark ? '#A7F3D0' : '#165A46',
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    profileNameText: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    premiumBadge: {
+      backgroundColor: isDark ? '#0C3D2F' : '#E6F4EA',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: isDark ? '#145A45' : '#CEEAD6',
+    },
+    premiumBadgeText: {
+      color: isDark ? '#A7F3D0' : '#137333',
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    bellBtn: {
+      width: 40,
+      height: 40,
       borderRadius: 20,
-      padding: 20,
+      backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    bellDot: {
+      position: 'absolute',
+      top: 9,
+      right: 9,
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+      backgroundColor: '#10B981',
+    },
+    heroCard: {
+      backgroundColor: colors.headerBg,
+      borderRadius: 24,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: isDark ? '#144637' : '#0E4E3E',
       marginBottom: 18,
     },
     heroHeaderRow: {
@@ -1543,35 +1666,287 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       alignItems: 'center',
     },
     heroLabel: {
-      color: colors.textMuted,
+      color: '#A7F3D0',
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    currencyBadge: {
+      backgroundColor: isDark ? '#052A20' : '#053127',
+      paddingHorizontal: 9,
+      paddingVertical: 3,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#0E4E3E',
+    },
+    currencyBadgeText: {
+      color: '#D1FAE5',
       fontSize: 11,
       fontWeight: '700',
+    },
+    heroBalance: {
+      color: '#FFFFFF',
+      fontSize: 34,
+      fontWeight: '900',
+      marginVertical: 8,
+    },
+    heroActionRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4,
+      marginBottom: 14,
+    },
+    heroAddBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      paddingVertical: 9,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#A7F3D055',
+      backgroundColor: '#04221A88',
+    },
+    heroAddBtnText: {
+      color: '#F0FDF4',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    heroTransferBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      paddingVertical: 9,
+      borderRadius: 999,
+      backgroundColor: '#A7F3D0',
+    },
+    heroTransferBtnText: {
+      color: '#064E3B',
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    heroMoreBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      paddingVertical: 9,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: '#A7F3D055',
+      backgroundColor: '#04221A88',
+    },
+    heroMoreBtnText: {
+      color: '#F0FDF4',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    subBalancesRow: {
+      flexDirection: 'row',
+      backgroundColor: isDark ? '#04221A' : '#053127',
+      borderRadius: 14,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: isDark ? '#0C4436' : '#0E4E3E',
+    },
+    subBalanceBox: { flex: 1 },
+    subBalanceDivider: { width: 1, backgroundColor: '#0E4E3E', marginHorizontal: 8 },
+    subBalanceLabel: { color: '#A7F3D0', fontSize: 10, marginBottom: 2, fontWeight: '600' },
+    subBalanceValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+    separatedBoxInHero: {
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#0E4E3E',
+    },
+    separatedTitleText: {
+      color: '#A7F3D0',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    separatedBadgeText: {
+      color: '#6EE7B7',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    separatedSumText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    separatedPill: {
+      backgroundColor: '#04221A',
+      borderWidth: 1,
+      borderColor: '#0E4E3E',
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    separatedPillText: {
+      color: '#A7F3D0',
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    quickAccessSection: {
+      marginBottom: 18,
+    },
+    quickAccessTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '800',
+      marginBottom: 10,
+    },
+    gridContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      justifyContent: 'space-between',
+    },
+    gridTile: {
+      width: '23%',
+      aspectRatio: 0.95,
+      borderRadius: 16,
+      backgroundColor: colors.tileBg,
+      borderWidth: 1,
+      borderColor: colors.tileBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 4,
+    },
+    gridTileIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: isDark ? '#0C382C' : '#DCFCE7',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    gridTileLabel: {
+      color: colors.text,
+      fontSize: 10,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    promoCard: {
+      backgroundColor: isDark ? '#0C382C' : '#083E31',
+      borderRadius: 20,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 18,
+      borderWidth: 1,
+      borderColor: isDark ? '#144637' : '#0C4E3D',
+    },
+    promoCardBadge: {
+      color: '#34D399',
+      fontSize: 9,
+      fontWeight: '800',
       letterSpacing: 0.8,
     },
+    promoCardTitle: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '800',
+      marginTop: 2,
+    },
+    promoCardSub: {
+      color: '#D1FAE5',
+      fontSize: 11,
+      marginTop: 2,
+      lineHeight: 15,
+    },
+    promoExploreBtn: {
+      backgroundColor: '#A7F3D0',
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 999,
+      alignSelf: 'flex-start',
+      marginTop: 8,
+    },
+    promoExploreBtnText: {
+      color: '#064E3B',
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    promoGraphicCircle: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: '#04221A',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: '#0C4E3D',
+    },
+    goalsSection: {
+      marginBottom: 18,
+    },
+    viewAllText: {
+      color: isDark ? '#34D399' : '#059669',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    goalCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      marginTop: 6,
+    },
+    goalTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    goalIconCircle: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: '#DCFCE7',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    goalTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    goalSub: {
+      color: colors.textMuted,
+      fontSize: 11,
+      marginTop: 1,
+    },
+    goalPctText: {
+      color: isDark ? '#34D399' : '#059669',
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    goalProgressBarBg: {
+      height: 5,
+      backgroundColor: isDark ? '#062B20' : '#E2E8F0',
+      borderRadius: 999,
+      marginTop: 8,
+      overflow: 'hidden',
+    },
+    goalProgressBarFill: {
+      height: '100%',
+      backgroundColor: '#34D399',
+      borderRadius: 999,
+    },
     badgeIncluded: {
-      backgroundColor: '#0369A1',
+      backgroundColor: '#059669',
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 999,
     },
     badgeIncludedText: { color: '#E0F2FE', fontSize: 11, fontWeight: '600' },
-    heroBalance: {
-      color: colors.text,
-      fontSize: 36,
-      fontWeight: '800',
-      marginVertical: 10,
-    },
-    subBalancesRow: {
-      flexDirection: 'row',
-      borderTopWidth: 1,
-      borderTopColor: colors.cardBorder,
-      paddingTop: 12,
-      marginTop: 4,
-    },
-    subBalanceBox: { flex: 1 },
-    subBalanceDivider: { width: 1, backgroundColor: colors.cardBorder, marginHorizontal: 12 },
-    subBalanceLabel: { color: colors.textMuted, fontSize: 11, marginBottom: 4 },
-    subBalanceValue: { color: colors.textSecondary, fontSize: 15, fontWeight: '700' },
     quickActionRow: {
       flexDirection: 'row',
       gap: 8,
@@ -1586,9 +1961,9 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       paddingVertical: 10,
       paddingHorizontal: 8,
       borderRadius: 12,
-      backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+      backgroundColor: isDark ? '#0C382C' : '#E0F2FE',
       borderWidth: 1,
-      borderColor: '#0284C7',
+      borderColor: '#059669',
       minWidth: 0,
     },
     transferQuickText: { color: isDark ? '#E0F2FE' : '#0369A1', fontSize: 12, fontWeight: '700' },
@@ -1653,13 +2028,13 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     addBtnSmall: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#38BDF8',
+      backgroundColor: '#A7F3D0',
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 999,
       gap: 4,
     },
-    addBtnSmallText: { color: '#0F172A', fontWeight: '700', fontSize: 13 },
+    addBtnSmallText: { color: '#064E3B', fontWeight: '800', fontSize: 13 },
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1691,8 +2066,8 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       marginRight: 8,
     },
     monthChipActive: {
-      backgroundColor: '#0369A1',
-      borderColor: '#38BDF8',
+      backgroundColor: isDark ? '#0C382C' : '#083E31',
+      borderColor: '#34D399',
     },
     monthChipText: {
       color: colors.text,

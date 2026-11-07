@@ -21,6 +21,7 @@ import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 
 const OWNER_QUICK_CHIPS = [
   'Mío (Ahorro)',
+  'Mío',
   'Mamá',
   'Papá',
   'Hermano/a',
@@ -41,6 +42,7 @@ export default function AccountsScreen() {
     hideOtherMoney,
     toggleHideOtherMoney,
     isOtherPersonAccount,
+    isOwnSavingsAccount,
     toggleAccountIncludeInTotal,
     connectCustomUSBank,
     updateAccountBalanceAndMask,
@@ -298,7 +300,7 @@ export default function AccountsScreen() {
                 <Ionicons name="person-outline" size={12} color={isDark ? '#E9D5FF' : '#7C3AED'} />
                 <Text style={styles.ownerBadgeText} numberOfLines={1} ellipsizeMode="tail">
                   {acc.ownerName
-                    ? `Dinero de: ${acc.ownerName}`
+                    ? (isOwnSavingsAccount(acc) ? `Mi Ahorro: ${acc.ownerName}` : `Dinero de: ${acc.ownerName}`)
                     : 'Asignar de quién es este dinero'}
                 </Text>
               </TouchableOpacity>
@@ -458,7 +460,7 @@ export default function AccountsScreen() {
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel} numberOfLines={1}>MIS AHORROS</Text>
-            <Text style={[styles.summaryIncludedValue, { color: '#38BDF8' }]} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={[styles.summaryIncludedValue, { color: isDark ? '#34D399' : '#059669' }]} numberOfLines={1} adjustsFontSizeToFit>
               ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </Text>
           </View>
@@ -1507,24 +1509,24 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      backgroundColor: '#38BDF8',
+      backgroundColor: '#A7F3D0',
       paddingVertical: 12,
       borderRadius: 12,
     },
-    plaidConnectBtnText: { color: '#0F172A', fontWeight: '800', fontSize: 13 },
+    plaidConnectBtnText: { color: '#064E3B', fontWeight: '800', fontSize: 13 },
     transferBtn: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 6,
-      backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+      backgroundColor: isDark ? '#0C382C' : '#E6F4EA',
       paddingVertical: 12,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: '#0284C7',
+      borderColor: isDark ? '#144637' : '#CEEAD6',
     },
-    transferBtnText: { color: isDark ? '#E0F2FE' : '#0369A1', fontWeight: '700', fontSize: 13 },
+    transferBtnText: { color: isDark ? '#A7F3D0' : '#064E3B', fontWeight: '700', fontSize: 13 },
     manualBtn: {
       width: 46,
       alignItems: 'center',

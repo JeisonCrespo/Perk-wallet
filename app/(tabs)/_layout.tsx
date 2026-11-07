@@ -4,25 +4,27 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
 
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   return (
     <Tabs
       backBehavior="history"
       screenOptions={{
         headerShown: true,
-        headerStyle: { backgroundColor: colors.card },
-        headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerStyle: { backgroundColor: isDark ? '#062B20' : '#083E31' },
+        headerTintColor: '#F0FDF4',
+        headerTitleStyle: { fontWeight: '800', fontSize: 17 },
         tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.cardBorder,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 6,
+          backgroundColor: isDark ? '#062B20' : '#072E23',
+          borderTopColor: isDark ? '#144637' : '#0E4032',
+          borderTopWidth: 1,
+          height: 66,
+          paddingBottom: 10,
+          paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: '#34D399',
+        tabBarInactiveTintColor: '#6EE7B788',
+        tabBarLabelStyle: { fontWeight: '700', fontSize: 11 },
       }}
     >
       <Tabs.Screen

@@ -7,6 +7,7 @@ export interface ThemeColors {
   background: string;
   card: string;
   cardBorder: string;
+  headerBg: string;
   text: string;
   textSecondary: string;
   textMuted: string;
@@ -14,39 +15,53 @@ export interface ThemeColors {
   chipBg: string;
   primary: string;
   primaryLight: string;
+  accentLime: string;
+  accentLimeText: string;
+  tileBg: string;
+  tileBorder: string;
   success: string;
   danger: string;
   warning: string;
 }
 
 export const DARK_THEME: ThemeColors = {
-  background: '#020617',
-  card: '#0F172A',
-  cardBorder: '#1E293B',
-  text: '#F8FAFC',
-  textSecondary: '#CBD5E1',
-  textMuted: '#94A3B8',
-  inputBg: '#1E293B',
-  chipBg: '#1E293B',
-  primary: '#38BDF8',
-  primaryLight: '#0C4A6E',
-  success: '#22C55E',
-  danger: '#EF4444',
-  warning: '#F59E0B',
+  background: '#041B15',
+  card: '#0C2B22',
+  cardBorder: '#144637',
+  headerBg: '#062B20',
+  text: '#F0FDF4',
+  textSecondary: '#A7F3D0',
+  textMuted: '#6EE7B7',
+  inputBg: '#07241C',
+  chipBg: '#0E362B',
+  primary: '#10B981',
+  primaryLight: '#064E3B',
+  accentLime: '#A7F3D0',
+  accentLimeText: '#064E3B',
+  tileBg: '#092F24',
+  tileBorder: '#144637',
+  success: '#34D399',
+  danger: '#F87171',
+  warning: '#FBBF24',
 };
 
 export const LIGHT_THEME: ThemeColors = {
-  background: '#F8FAFC',
+  background: '#F4F7F5',
   card: '#FFFFFF',
-  cardBorder: '#E2E8F0',
-  text: '#0F172A',
-  textSecondary: '#334155',
+  cardBorder: '#E1ECE6',
+  headerBg: '#083E31',
+  text: '#062E23',
+  textSecondary: '#165A46',
   textMuted: '#64748B',
-  inputBg: '#F1F5F9',
-  chipBg: '#F1F5F9',
-  primary: '#0284C7',
-  primaryLight: '#E0F2FE',
-  success: '#16A34A',
+  inputBg: '#F0FDF4',
+  chipBg: '#F0FDF4',
+  primary: '#064E3B',
+  primaryLight: '#ECFDF5',
+  accentLime: '#A7F3D0',
+  accentLimeText: '#064E3B',
+  tileBg: '#F0FDF4',
+  tileBorder: '#D1FAE5',
+  success: '#059669',
   danger: '#DC2626',
   warning: '#D97706',
 };

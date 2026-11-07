@@ -914,24 +914,24 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: colors.cardBorder,
     },
     topSwitchBtnActive: {
-      backgroundColor: '#38BDF8',
-      borderColor: '#38BDF8',
+      backgroundColor: colors.accentLime || '#A7F3D0',
+      borderColor: '#34D399',
     },
     topSwitchText: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-    topSwitchTextActive: { color: '#0F172A', fontWeight: '800' },
+    topSwitchTextActive: { color: colors.accentLimeText || '#064E3B', fontWeight: '800' },
     scrollContent: { padding: 16, paddingBottom: 40 },
     infoBanner: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: isDark ? '#0F172A' : '#EFF6FF',
+      backgroundColor: isDark ? '#062B20' : '#E8F5E9',
       padding: 14,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: isDark ? '#0369A1' : '#BAE6FD',
+      borderColor: isDark ? '#064E3B' : '#A7F3D0',
       marginBottom: 16,
     },
-    infoBannerText: { flex: 1, color: isDark ? '#CBD5E1' : '#0369A1', fontSize: 12, lineHeight: 17 },
+    infoBannerText: { flex: 1, color: isDark ? '#A7F3D0' : '#065F46', fontSize: 12, lineHeight: 17 },
     headerSpread: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -942,13 +942,13 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
     newBudgetBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#38BDF8',
+      backgroundColor: colors.accentLime || '#A7F3D0',
       paddingHorizontal: 12,
       paddingVertical: 7,
       borderRadius: 999,
       gap: 4,
     },
-    newBudgetBtnText: { color: '#0F172A', fontWeight: '800', fontSize: 12 },
+    newBudgetBtnText: { color: colors.accentLimeText || '#064E3B', fontWeight: '800', fontSize: 12 },
     budgetCard: {
       backgroundColor: colors.card,
       borderRadius: 16,
@@ -990,8 +990,8 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       marginRight: 8,
     },
     filterChipActive: {
-      backgroundColor: '#0369A1',
-      borderColor: '#38BDF8',
+      backgroundColor: isDark ? '#064E3B' : '#A7F3D0',
+      borderColor: '#34D399',
     },
     filterChipText: { color: colors.text, fontSize: 12, fontWeight: '600' },
     cashflowCard: {
@@ -1157,8 +1157,8 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: isDark ? '#334155' : '#CBD5E1',
     },
     runwayDaysChipActive: {
-      backgroundColor: '#0284C7',
-      borderColor: '#38BDF8',
+      backgroundColor: isDark ? '#064E3B' : '#A7F3D0',
+      borderColor: '#34D399',
     },
     runwayDaysChipText: {
       color: colors.textMuted,
@@ -1166,7 +1166,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       fontWeight: '700',
     },
     runwayDaysChipTextActive: {
-      color: '#F8FAFC',
+      color: isDark ? '#A7F3D0' : '#064E3B',
       fontWeight: '800',
     },
     emptyText: {
@@ -1234,8 +1234,8 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       flex: 1,
       paddingVertical: 12,
       borderRadius: 12,
-      backgroundColor: '#38BDF8',
+      backgroundColor: colors.accentLime || '#A7F3D0',
       alignItems: 'center',
     },
-    saveBtnText: { color: '#0F172A', fontWeight: '800' },
+    saveBtnText: { color: colors.accentLimeText || '#064E3B', fontWeight: '800' },
   });
