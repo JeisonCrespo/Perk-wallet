@@ -3,12 +3,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { G, Circle } from 'react-native-svg';
 import { CategoryBreakdown } from '../types/finance';
 import { useTheme } from '../context/ThemeContext';
+import { formatMoney } from '../constants/currencies';
 
 interface DonutChartProps {
   data: CategoryBreakdown[];
   size?: number;
   strokeWidth?: number;
   centerLabel?: string;
+  currency?: string;
 }
 
 export const DonutChart: React.FC<DonutChartProps> = ({
@@ -16,6 +18,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   size = 210,
   strokeWidth = 26,
   centerLabel = 'Total Gastos',
+  currency = 'USD',
 }) => {
   const { colors, isDark } = useTheme();
   const radius = (size - strokeWidth) / 2;
@@ -67,8 +70,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({
 
         <View style={styles.centerTextContainer}>
           <Text style={[styles.centerSubtitle, { color: colors.textMuted }]}>{centerLabel}</Text>
-          <Text style={[styles.centerAmount, { color: colors.text }]}>
-            ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <Text style={[styles.centerAmount, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
+            {formatMoney(totalAmount, currency, true)}
           </Text>
         </View>
       </View>

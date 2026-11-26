@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,14 @@ import { useFinance } from '../../src/context/FinanceContext';
 import {
   US_MAJOR_BANKS,
   USBankTemplate,
+  getBanksForCurrency,
 } from '../../src/services/plaidService';
 import { AccountType, BankAccount } from '../../src/types/finance';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { AccountSelectorField } from '../../src/components/PickerModal';
 import { DraggableAccountList } from '../../src/components/DraggableAccountList';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
+import { formatMoney } from '../../src/constants/currencies';
 
 const OWNER_QUICK_CHIPS = [
   'Mío (Ahorro)',
@@ -43,6 +46,8 @@ export default function AccountsScreen() {
     otherPeopleTotalBalance,
     hideOtherMoney,
     toggleHideOtherMoney,
+    hideSavings,
+    toggleHideSavings,
     isOtherPersonAccount,
     isOwnSavingsAccount,
     toggleAccountIncludeInTotal,
@@ -55,7 +60,22 @@ export default function AccountsScreen() {
     deleteAccount,
     reorderAccounts,
     moveAccount,
+    userProfile,
   } = useFinance();
+
+  const cur = userProfile.currency || 'USD';
+  const allUserCurrencies = useMemo(
+    () => Array.from(new Set([cur, ...(userProfile.secondaryCurrencies || [])])),
+    [cur, userProfile.secondaryCurrencies]
+  );
+  const [newAccCurrency, setNewAccCurrency] = useState(cur);
+  const [editAccCurrency, setEditAccCurrency] = useState(cur);
+  useEffect(() => {
+    setNewAccCurrency(cur);
+  }, [cur]);
+  const availableBanks = useMemo(() => getBanksForCurrency(newAccCurrency), [newAccCurrency]);
+  const [showBankPickerModal, setShowBankPickerModal] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
 
   const scrollRef = useRef<any>(null);
   const [showReorderModal, setShowReorderModal] = useState(false);
@@ -117,31 +137,34 @@ export default function AccountsScreen() {
   const [transferFee, setTransferFee] = useState('');
   const [transferNote, setTransferNote] = useState('');
 
+  // Filtrar cuentas por la moneda/país activo para no mezclar bancos de otro país
+  const currencyAccounts = useMemo(() => {
+    return accounts.filter((a) => (a.currency || 'USD') === cur);
+  }, [accounts, cur]);
+
   // 1. Cuentas mías de uso diario (checking, tarjetas de crédito, billeteras activas)
   const myActiveAccounts = useMemo(() => {
-    return accounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
-  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+    return currencyAccounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
+  }, [currencyAccounts, isOtherPersonAccount, isOwnSavingsAccount]);
 
   // 2. Cuentas mías de ahorro (fondos guardados para metas o emergencias)
   const mySavingsAccounts = useMemo(() => {
-    return accounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
-  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+    return currencyAccounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
+  }, [currencyAccounts, isOtherPersonAccount, isOwnSavingsAccount]);
 
   // Todas mis cuentas para compatibilidad
   const myAccounts = useMemo(() => {
-    return accounts.filter((a) => !isOtherPersonAccount(a));
-  }, [accounts, isOtherPersonAccount]);
+    return currencyAccounts.filter((a) => !isOtherPersonAccount(a));
+  }, [currencyAccounts, isOtherPersonAccount]);
 
   // 3. Cuentas separadas de terceros o dinero ajeno exclusivamente
   const otherAccounts = useMemo(() => {
-    return accounts.filter((a) => isOtherPersonAccount(a));
-  }, [accounts, isOtherPersonAccount]);
+    return currencyAccounts.filter((a) => isOtherPersonAccount(a));
+  }, [currencyAccounts, isOtherPersonAccount]);
 
   const separatedAccounts = useMemo(() => {
-    return accounts.filter((a) => isOtherPersonAccount(a));
-  }, [accounts, isOtherPersonAccount]);
-
-  const [hideSavings, setHideSavings] = useState(false);
+    return currencyAccounts.filter((a) => isOtherPersonAccount(a));
+  }, [currencyAccounts, isOtherPersonAccount]);
 
   const handleSelectUSBankTemplate = (bank: USBankTemplate, typeOverride?: AccountType) => {
     const targetType = typeOverride || usBankAccountType;
@@ -169,7 +192,7 @@ export default function AccountsScreen() {
       mask: usBankMask.trim() || selectedBankTemplate.defaultMask,
       type: usBankAccountType,
       balance: parsedBal,
-      currency: 'USD',
+      currency: newAccCurrency || cur,
       includeInTotal: usBankAccountType === 'credit' ? false : usBankIncludeTotal,
       color: selectedBankTemplate.color,
       ownerName: usBankOwnerName.trim() || undefined,
@@ -196,7 +219,7 @@ export default function AccountsScreen() {
       institution: institution.trim() || 'Cuenta Personal',
       type: accountType,
       balance: parsedBalance,
-      currency: 'USD',
+      currency: cur,
       includeInTotal: accountType === 'credit' ? false : includeInTotal,
       color: accountType === 'credit' ? '#E11D48' : '#0284C7',
       ownerName: manualOwnerName.trim() || undefined,
@@ -345,7 +368,7 @@ export default function AccountsScreen() {
 
           <View style={{ alignItems: 'flex-end', minWidth: 70 }}>
             <Text style={styles.accountBalance} numberOfLines={1} adjustsFontSizeToFit>
-              ${acc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatMoney(acc.balance, acc.currency || cur, true)}
             </Text>
             {isCredit && (
               <Text style={styles.creditSubTag} numberOfLines={1}>Saldo usado</Text>
@@ -492,6 +515,7 @@ export default function AccountsScreen() {
                 setEditAccBalance(String(acc.balance));
                 setEditAccMask(acc.mask || '');
                 setEditAccOwnerName(acc.ownerName || '');
+                setEditAccCurrency(acc.currency || cur);
               }}
             >
               <Ionicons name="create-outline" size={14} color={isDark ? '#38BDF8' : '#0284C7'} />
@@ -517,14 +541,14 @@ export default function AccountsScreen() {
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel} numberOfLines={1}>DISPONIBLE</Text>
             <Text style={styles.summaryIncludedValue} numberOfLines={1} adjustsFontSizeToFit>
-              ${includedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatMoney(includedTotalBalance, cur, true)}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel} numberOfLines={1}>MIS AHORROS</Text>
             <Text style={[styles.summaryIncludedValue, { color: isDark ? '#34D399' : '#059669' }]} numberOfLines={1} adjustsFontSizeToFit>
-              ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatMoney(ownSavingsBalance, cur, true)}
             </Text>
           </View>
           <View style={styles.summaryDivider} />
@@ -544,7 +568,7 @@ export default function AccountsScreen() {
             <Text style={styles.summaryExcludedValue} numberOfLines={1} adjustsFontSizeToFit>
               {hideOtherMoney
                 ? '••••••'
-                : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                : formatMoney(otherPeopleTotalBalance, cur, true)}
             </Text>
           </TouchableOpacity>
         </View>
@@ -584,7 +608,7 @@ export default function AccountsScreen() {
                   <Text style={styles.ownerItemAmount} numberOfLines={1} adjustsFontSizeToFit>
                     {hideOtherMoney
                       ? '••••••'
-                      : `$${sepAcc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                      : formatMoney(sepAcc.balance, cur, true)}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -598,7 +622,9 @@ export default function AccountsScreen() {
             <TouchableOpacity
               style={[styles.plaidConnectBtn, { flex: 1 }]}
               onPress={() => {
-                handleSelectUSBankTemplate(US_MAJOR_BANKS[0], 'checking');
+                setNewAccCurrency(cur);
+                const list = getBanksForCurrency(cur);
+                handleSelectUSBankTemplate(list[0] || US_MAJOR_BANKS[0], 'checking');
                 setUsBankOwnerName('');
                 setUsBankBalance('');
                 setUsBankIncludeTotal(true);
@@ -701,7 +727,7 @@ export default function AccountsScreen() {
         {mySavingsAccounts.length > 0 && (
           <View style={{ marginTop: 4, marginBottom: 16 }}>
             <TouchableOpacity
-              onPress={() => setHideSavings(!hideSavings)}
+              onPress={toggleHideSavings}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -722,7 +748,7 @@ export default function AccountsScreen() {
                   Mis Cuentas de Ahorro ({mySavingsAccounts.length})
                 </Text>
                 <Text style={{ fontSize: 12, fontWeight: '800', color: isDark ? '#A7F3D0' : '#047857' }}>
-                  ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatMoney(ownSavingsBalance, cur, true)}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -813,8 +839,8 @@ export default function AccountsScreen() {
           <View style={{ flex: 2 }}>
             <Text style={styles.inputLabel}>
               {editingAccount?.type === 'credit'
-                ? 'Deuda Actual en Tarjeta ($ USD)'
-                : 'Saldo Actual ($ USD)'}
+                ? `Deuda Actual en Tarjeta (${editAccCurrency})`
+                : `Saldo Actual (${editAccCurrency})`}
             </Text>
             <TextInput
               style={styles.input}
@@ -876,6 +902,31 @@ export default function AccountsScreen() {
           })}
         </ScrollView>
 
+        {allUserCurrencies.length > 1 && (
+          <View style={{ marginTop: 10 }}>
+            <Text style={styles.inputLabel}>💱 Moneda de esta cuenta</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+              {allUserCurrencies.map((cCode) => {
+                const isSel = editAccCurrency === cCode;
+                return (
+                  <TouchableOpacity
+                    key={cCode}
+                    style={[
+                      styles.chip,
+                      isSel && { borderColor: '#10B981', backgroundColor: isDark ? '#064E3B' : '#ECFDF5' },
+                    ]}
+                    onPress={() => setEditAccCurrency(cCode)}
+                  >
+                    <Text style={[styles.chipText, isSel && { color: isDark ? '#34D399' : '#065F46', fontWeight: '800' }]}>
+                      {cCode}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
           <TouchableOpacity
             style={[styles.closeModalBtn, { flex: 1, marginTop: 0 }]}
@@ -892,7 +943,8 @@ export default function AccountsScreen() {
                   editAccName || editingAccount.name,
                   parseFloat(editAccBalance) || 0,
                   editAccMask,
-                  editAccOwnerName
+                  editAccOwnerName,
+                  editAccCurrency
                 );
                 setEditingAccount(null);
               }
@@ -916,37 +968,15 @@ export default function AccountsScreen() {
           Pega aquí una o varias notificaciones/SMS de tu banco o filas CSV. La app detecta comercio, monto, ícono y cuenta automáticamente.
         </Text>
 
-        <Text style={styles.inputLabel}>Cuenta por defecto (si la alerta no dice el banco)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
-            const isSelected = smartImportAccId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSelected && {
-                    borderColor: isDark ? '#4ADE80' : '#16A34A',
-                    backgroundColor: isDark ? '#14532D' : '#DCFCE7',
-                  },
-                ]}
-                onPress={() => setSmartImportAccId(acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && {
-                      color: isDark ? '#86EFAC' : '#15803D',
-                      fontWeight: '800',
-                    },
-                  ]}
-                >
-                  {acc.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="Cuenta por defecto (si la alerta no dice el banco)"
+          accounts={accounts}
+          selectedId={smartImportAccId}
+          onSelect={setSmartImportAccId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+          isOwnSavingsAccount={isOwnSavingsAccount}
+        />
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
           <Text style={styles.inputLabel}>Pega tus alertas o líneas CSV aquí:</Text>
@@ -1022,7 +1052,7 @@ export default function AccountsScreen() {
           En EE. UU. mantener el uso bajo el 30% antes del día de corte (Statement Closing Date) mejora tu puntaje de crédito (Credit Score).
         </Text>
 
-        <Text style={styles.inputLabel}>Límite de Crédito Total ($ USD)</Text>
+        <Text style={styles.inputLabel}>Límite de Crédito Total ({cur})</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. 3000"
@@ -1084,73 +1114,29 @@ export default function AccountsScreen() {
           Mueve saldo de una cuenta a otra (o paga tu tarjeta de crédito). Si te cobraron comisión, agrégala opcionalmente.
         </Text>
 
-        <Text style={styles.inputLabel}>De qué cuenta sale (Origen)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
-            const isSelected = fromAccId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSelected && {
-                    borderColor: isDark ? '#38BDF8' : '#0284C7',
-                    backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
-                  },
-                ]}
-                onPress={() => setFromAccId(acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && {
-                      color: isDark ? '#38BDF8' : '#0369A1',
-                      fontWeight: '800',
-                    },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(2)})
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="De qué cuenta sale (Origen)"
+          accounts={accounts}
+          selectedId={fromAccId}
+          onSelect={setFromAccId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+          isOwnSavingsAccount={isOwnSavingsAccount}
+        />
 
-        <Text style={styles.inputLabel}>A qué cuenta entra o qué tarjeta paga (Destino)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
-            const isSelected = toAccId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSelected && {
-                    borderColor: isDark ? '#4ADE80' : '#16A34A',
-                    backgroundColor: isDark ? '#14532D' : '#DCFCE7',
-                  },
-                ]}
-                onPress={() => setToAccId(acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && {
-                      color: isDark ? '#86EFAC' : '#15803D',
-                      fontWeight: '800',
-                    },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(2)})
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="A qué cuenta entra o qué tarjeta paga (Destino)"
+          accounts={accounts}
+          selectedId={toAccId}
+          onSelect={setToAccId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+          isOwnSavingsAccount={isOwnSavingsAccount}
+        />
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.inputLabel}>Monto a Pasar ($ USD)</Text>
+            <Text style={styles.inputLabel}>Monto a Pasar ({cur})</Text>
             <TextInput
               style={styles.input}
               placeholder="0.00"
@@ -1211,35 +1197,62 @@ export default function AccountsScreen() {
           Selecciona tu banco o billetera (Wells Fargo, Chase, Truist, PayPal, Uber, etc.) e ingresa tu saldo actual.
         </Text>
 
-        <Text style={styles.inputLabel}>1. Selecciona tu Banco o Billetera</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginVertical: 6 }}
+        {allUserCurrencies.length > 1 && (
+          <View style={{ marginBottom: 8 }}>
+            <Text style={styles.inputLabel}>💱 Moneda de esta cuenta</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+              {allUserCurrencies.map((cCode) => {
+                const isSel = newAccCurrency === cCode;
+                return (
+                  <TouchableOpacity
+                    key={cCode}
+                    style={[
+                      styles.chip,
+                      isSel && { borderColor: '#10B981', backgroundColor: isDark ? '#064E3B' : '#ECFDF5' },
+                    ]}
+                    onPress={() => {
+                      setNewAccCurrency(cCode);
+                      const list = getBanksForCurrency(cCode);
+                      if (list[0]) handleSelectUSBankTemplate(list[0]);
+                    }}
+                  >
+                    <Text style={[styles.chipText, isSel && { color: isDark ? '#34D399' : '#065F46', fontWeight: '800' }]}>
+                      {cCode}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <Text style={styles.inputLabel}>1. Selecciona tu Banco o Billetera ({newAccCurrency})</Text>
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 12,
+            marginBottom: 8,
+          }}
+          onPress={() => {
+            setBankSearch('');
+            setShowBankPickerModal(true);
+          }}
         >
-          {US_MAJOR_BANKS.map((bank) => {
-            const isSelected = selectedBankTemplate.id === bank.id;
-            return (
-              <TouchableOpacity
-                key={bank.id}
-                style={[
-                  styles.usBankPill,
-                  { borderColor: isSelected ? bank.color : '#334155' },
-                  isSelected && { backgroundColor: bank.color + '28' },
-                ]}
-                onPress={() => handleSelectUSBankTemplate(bank)}
-              >
-                <View
-                  style={[
-                    styles.usBankDot,
-                    { backgroundColor: bank.color },
-                  ]}
-                />
-                <Text style={styles.usBankPillText}>{bank.shortName}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.usBankDot, { backgroundColor: selectedBankTemplate.color }]} />
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
+              {selectedBankTemplate.institution}
+            </Text>
+          </View>
+          <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
 
         <Text style={styles.inputLabel}>2. Tipo de Cuenta en {selectedBankTemplate.shortName}</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
@@ -1308,8 +1321,8 @@ export default function AccountsScreen() {
           <View style={{ flex: 2 }}>
             <Text style={styles.inputLabel}>
               {usBankAccountType === 'credit'
-                ? 'Deuda Usada Actual ($ USD)'
-                : 'Tu Saldo Actual ($ USD)'}
+                ? `Deuda Usada Actual (${newAccCurrency})`
+                : `Tu Saldo Actual (${newAccCurrency})`}
             </Text>
             <TextInput
               style={styles.input}
@@ -1505,7 +1518,7 @@ export default function AccountsScreen() {
         />
 
         <Text style={styles.inputLabel}>
-          {accountType === 'credit' ? 'Deuda / Saldo usado actual ($ USD)' : 'Monto / Saldo Inicial ($ USD)'}
+          {accountType === 'credit' ? `Deuda / Saldo usado actual (${cur})` : `Monto / Saldo Inicial (${cur})`}
         </Text>
         <TextInput
           style={styles.input}
@@ -1648,6 +1661,73 @@ export default function AccountsScreen() {
           onClose={() => setShowReorderModal(false)}
         />
       </KeyboardSafeModal>
+
+      {/* Modal Selector Vertical de Bancos filtrados por País/Moneda */}
+      <KeyboardSafeModal
+        visible={showBankPickerModal}
+        animationType="slide"
+        onClose={() => setShowBankPickerModal(false)}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={styles.modalTitle}>Bancos disponibles ({cur})</Text>
+          <TouchableOpacity onPress={() => setShowBankPickerModal(false)}>
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+        <TextInput
+          style={styles.input}
+          placeholder="Buscar banco o billetera..."
+          placeholderTextColor="#64748B"
+          value={bankSearch}
+          onChangeText={setBankSearch}
+        />
+        <ScrollView style={{ maxHeight: 360, marginTop: 6 }}>
+          {availableBanks
+            .filter(
+              (b) =>
+                !bankSearch.trim() ||
+                b.institution.toLowerCase().includes(bankSearch.toLowerCase()) ||
+                b.shortName.toLowerCase().includes(bankSearch.toLowerCase())
+            )
+            .map((bank) => {
+              const isSel = selectedBankTemplate.id === bank.id;
+              return (
+                <TouchableOpacity
+                  key={bank.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 12,
+                    borderRadius: 12,
+                    marginBottom: 6,
+                    backgroundColor: isSel
+                      ? (isDark ? '#064E3B44' : '#ECFDF5')
+                      : (isDark ? '#1E293B' : '#F8FAFC'),
+                    borderWidth: 1,
+                    borderColor: isSel ? '#10B981' : colors.cardBorder,
+                  }}
+                  onPress={() => {
+                    handleSelectUSBankTemplate(bank);
+                    setShowBankPickerModal(false);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={[styles.usBankDot, { backgroundColor: bank.color, width: 14, height: 14, borderRadius: 7 }]} />
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
+                      {bank.institution}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={isSel ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={20}
+                    color={isSel ? '#10B981' : colors.textMuted}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+        </ScrollView>
+      </KeyboardSafeModal>
     </View>
   );
 }
@@ -1665,8 +1745,8 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: colors.cardBorder,
       marginBottom: 12,
     },
-    summaryCol: { flex: 1 },
-    summaryDivider: { width: 1, backgroundColor: colors.cardBorder, marginHorizontal: 14 },
+    summaryCol: { flex: 1, minWidth: 0 },
+    summaryDivider: { width: 1, backgroundColor: colors.cardBorder, marginHorizontal: 10 },
     summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700' },
     summaryIncludedValue: { color: '#38BDF8', fontSize: 20, fontWeight: '800', marginTop: 4 },
     summaryExcludedValue: { color: '#A855F7', fontSize: 20, fontWeight: '800', marginTop: 4 },

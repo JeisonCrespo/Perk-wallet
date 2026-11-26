@@ -18,9 +18,11 @@ import { useFinance } from '../../src/context/FinanceContext';
 import { Transaction, TransactionType } from '../../src/types/finance';
 import { SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { AccountSelectorField, CategorySelectorField } from '../../src/components/PickerModal';
 import { DateField } from '../../src/components/DatePickerModal';
 import { OnboardingView } from '../../src/components/OnboardingView';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
+import { formatMoney, getCurrencyPrefix, POPULAR_CURRENCIES } from '../../src/constants/currencies';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -51,9 +53,15 @@ export default function DashboardScreen() {
     postponeRecurringItem,
     skipRecurringCycle,
     userProfile,
+    updateUserProfile,
     hasCompletedOnboarding,
     setHasCompletedOnboarding,
   } = useFinance();
+
+  const cur = userProfile.currency || 'USD';
+  const curPrefix = getCurrencyPrefix(cur);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [currencySearch, setCurrencySearch] = useState('');
 
   const scrollRef = useRef<any>(null);
 
@@ -103,18 +111,34 @@ export default function DashboardScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
-  // Ordenar cuentas para registrar movimientos: mis cuentas activas primero (en su orden personalizado), luego ahorros, luego ajenas
+  // Límite de movimientos en pantalla principal + Calendario "Ver más"
+  const MAX_RECENT_TX = 6;
+  const [showCalendarHistoryModal, setShowCalendarHistoryModal] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const [selectedCalDate, setSelectedCalDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Ordenar cuentas para registrar movimientos: solo cuentas de la moneda activa (activas primero, luego ahorros, luego ajenas)
   const sortedAccountsForSelection = useMemo(() => {
-    const ownActive = accounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
-    const ownSavings = accounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
-    const otherPeople = accounts.filter((a) => isOtherPersonAccount(a));
+    const curAccounts = accounts.filter((a) => (a.currency || 'USD') === cur);
+    const ownActive = curAccounts.filter((a) => !isOtherPersonAccount(a) && !isOwnSavingsAccount(a));
+    const ownSavings = curAccounts.filter((a) => !isOtherPersonAccount(a) && isOwnSavingsAccount(a));
+    const otherPeople = curAccounts.filter((a) => isOtherPersonAccount(a));
     return [...ownActive, ...ownSavings, ...otherPeople];
-  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+  }, [accounts, cur, isOtherPersonAccount, isOwnSavingsAccount]);
 
   const today = new Date().toISOString().split('T')[0];
   const [txDate, setTxDate] = useState(today);
 
-  const dueRecurring = recurringItems.filter((item) => item.nextDueDate <= today);
+  const dueRecurring = useMemo(() => {
+    return recurringItems.filter((item) => {
+      if (item.nextDueDate > today) return false;
+      const acc = accounts.find((a) => a.id === item.accountId);
+      return (acc?.currency || 'USD') === cur;
+    });
+  }, [recurringItems, accounts, today, cur]);
 
   // Obtener lista única de meses (YYYY-MM) presentes en las transacciones
   const availableMonths = useMemo(() => {
@@ -130,6 +154,9 @@ export default function DashboardScreen() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
+      const txAcc = accounts.find((a) => a.id === tx.accountId);
+      if ((txAcc?.currency || 'USD') !== cur) return false;
+
       const matchesMonth =
         selectedMonth === 'all' || tx.date.startsWith(selectedMonth);
 
@@ -188,45 +215,62 @@ export default function DashboardScreen() {
   };
 
   const handleSaveTransaction = async () => {
-    const parsedAmount = parseFloat(amount);
-    const parsedFee = parseFloat(fee) || 0;
+    const parsedAmount = parseFloat(amount.replace(',', '.'));
+    const parsedFee = parseFloat(fee.replace(',', '.')) || 0;
 
-    if (!parsedAmount || parsedAmount <= 0 || !selectedAccountId) return;
-
-    if (txType === 'transfer') {
-      if (!toAccountId || selectedAccountId === toAccountId) {
-        Alert.alert(
-          'Cuentas iguales',
-          'Elige una cuenta de origen y una cuenta de destino diferentes.'
-        );
-        return;
-      }
-      await transferBetweenAccounts({
-        fromAccountId: selectedAccountId,
-        toAccountId,
-        amount: parsedAmount,
-        fee: parsedFee,
-        description: description.trim() || undefined,
-        date: txDate || today,
-      });
-      setShowAddModal(false);
+    if (!parsedAmount || parsedAmount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresa un monto mayor a 0.');
+      return;
+    }
+    if (!selectedAccountId) {
+      Alert.alert('Falta la cuenta', 'Selecciona o crea una cuenta bancaria primero.');
       return;
     }
 
-    if (!selectedCategoryId) return;
+    try {
+      if (txType === 'transfer') {
+        if (!toAccountId || selectedAccountId === toAccountId) {
+          Alert.alert(
+            'Cuentas iguales',
+            'Elige una cuenta de origen y una cuenta de destino diferentes.'
+          );
+          return;
+        }
+        await transferBetweenAccounts({
+          fromAccountId: selectedAccountId,
+          toAccountId,
+          amount: parsedAmount,
+          fee: parsedFee,
+          description: description.trim() || undefined,
+          date: txDate || today,
+        });
+        setShowAddModal(false);
+        return;
+      }
 
-    await addTransaction({
-      accountId: selectedAccountId,
-      categoryId: selectedCategoryId,
-      type: txType,
-      amount: parsedAmount,
-      fee: parsedFee,
-      description:
-        description.trim() || (txType === 'expense' ? 'Gasto manual' : 'Ingreso manual'),
-      date: txDate || today,
-      isAntExpense: txType === 'expense' ? (isAntExpense || selectedCategoryId === 'cat-ant') : false,
-    });
-    setShowAddModal(false);
+      const finalCatId =
+        selectedCategoryId ||
+        categories.find((c) => c.type === (txType === 'income' ? 'income' : 'expense'))?.id;
+      if (!finalCatId) {
+        Alert.alert('Falta la categoría', 'Selecciona una categoría para continuar.');
+        return;
+      }
+
+      await addTransaction({
+        accountId: selectedAccountId,
+        categoryId: finalCatId,
+        type: txType,
+        amount: parsedAmount,
+        fee: parsedFee,
+        description:
+          description.trim() || (txType === 'expense' ? 'Gasto manual' : 'Ingreso manual'),
+        date: txDate || today,
+        isAntExpense: txType === 'expense' ? (isAntExpense || finalCatId === 'cat-ant') : false,
+      });
+      setShowAddModal(false);
+    } catch (err: any) {
+      Alert.alert('Error al guardar', err?.message || 'No se pudo registrar el movimiento.');
+    }
   };
 
   return (
@@ -267,30 +311,22 @@ export default function DashboardScreen() {
 
           {/* Saldo Principal */}
           <View style={styles.heroHeaderRow}>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-              onPress={toggleHideOtherMoney}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.heroLabel}>Total Balance</Text>
-              <Ionicons
-                name={hideOtherMoney ? 'eye-off-outline' : 'eye-outline'}
-                size={16}
-                color="#A7F3D0"
-              />
-            </TouchableOpacity>
+            <Text style={styles.heroLabel}>Total Balance</Text>
 
             <TouchableOpacity
               style={styles.currencyBadge}
-              onPress={() => router.push('/(tabs)/categories')}
+              onPress={() => {
+                setCurrencySearch('');
+                setShowCurrencyModal(true);
+              }}
               activeOpacity={0.8}
             >
-              <Text style={styles.currencyBadgeText}>{userProfile.currency || 'USD'} ▾</Text>
+              <Text style={styles.currencyBadgeText}>{cur} ▾</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.heroBalance} numberOfLines={1} adjustsFontSizeToFit>
-            ${includedTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatMoney(includedTotalBalance, cur, true)}
           </Text>
 
           {/* Botones de Acción: + Registrar, ↗ Pasar, 🐜 Hormiga */}
@@ -331,7 +367,7 @@ export default function DashboardScreen() {
             <View style={styles.subBalanceBox}>
               <Text style={styles.subBalanceLabel} numberOfLines={1}>Mis Ahorros</Text>
               <Text style={[styles.subBalanceValue, { color: '#A7F3D0' }]} numberOfLines={1} adjustsFontSizeToFit>
-                ${ownSavingsBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatMoney(ownSavingsBalance, cur, true)}
               </Text>
             </View>
             <View style={styles.subBalanceDivider} />
@@ -351,14 +387,14 @@ export default function DashboardScreen() {
               <Text style={[styles.subBalanceValue, { color: '#FCD34D' }]} numberOfLines={1} adjustsFontSizeToFit>
                 {hideOtherMoney
                   ? '••••••'
-                  : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  : formatMoney(otherPeopleTotalBalance, cur, true)}
               </Text>
             </TouchableOpacity>
             <View style={styles.subBalanceDivider} />
             <View style={styles.subBalanceBox}>
               <Text style={styles.subBalanceLabel} numberOfLines={1}>Patrimonio</Text>
               <Text style={[styles.subBalanceValue, { color: '#93C5FD' }]} numberOfLines={1} adjustsFontSizeToFit>
-                ${netWorthBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatMoney(netWorthBalance, cur, true)}
               </Text>
             </View>
           </View>
@@ -385,10 +421,10 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 {otherPeopleTotalBalance > 0 && (
-                  <Text style={styles.separatedSumText}>
+                  <Text style={styles.separatedSumText} numberOfLines={1} adjustsFontSizeToFit>
                     {hideOtherMoney
                       ? '••••••'
-                      : `$${otherPeopleTotalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                      : formatMoney(otherPeopleTotalBalance, cur)}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -402,7 +438,7 @@ export default function DashboardScreen() {
                         <Text style={styles.separatedPillText} numberOfLines={1} ellipsizeMode="tail">
                           {sep.ownerName ? `${sep.ownerName}: ` : `${sep.name}: `}
                           <Text style={{ fontWeight: '800' }}>
-                            ${sep.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatMoney(sep.balance, cur)}
                           </Text>
                         </Text>
                       </View>
@@ -423,7 +459,7 @@ export default function DashboardScreen() {
             <Text style={styles.promoCardSub}>
               {antExpensesThisMonth.length === 0
                 ? 'Controla fugas de dinero hormiga y proyecta tus días de supervivencia.'
-                : `${antExpensesThisMonth.length} gasto(s) hormiga anotado(s) este mes ($${antMonthTotal.toFixed(2)}).`}
+                : `${antExpensesThisMonth.length} gasto(s) hormiga anotado(s) este mes (${formatMoney(antMonthTotal, cur)}).`}
             </Text>
             <TouchableOpacity
               style={styles.promoExploreBtn}
@@ -566,15 +602,32 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Encabezado de Movimientos + Botón Registrar */}
+        {/* Encabezado de Movimientos (sin botón repetir Registrar) */}
         <View style={styles.sectionHeaderSpread}>
           <Text style={styles.sectionTitle}>Historial de Movimientos</Text>
           <TouchableOpacity
-            style={styles.addBtnSmall}
-            onPress={() => openNewTransactionModal('expense')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: isDark ? '#0284C7' : '#BAE6FD',
+            }}
+            onPress={() => {
+              setSelectedCalDate(today);
+              const now = new Date();
+              setCalMonth({ year: now.getFullYear(), month: now.getMonth() });
+              setShowCalendarHistoryModal(true);
+            }}
           >
-            <Ionicons name="add" size={18} color="#0F172A" />
-            <Text style={styles.addBtnSmallText}>Registrar</Text>
+            <Ionicons name="calendar-outline" size={15} color={isDark ? '#38BDF8' : '#0284C7'} />
+            <Text style={{ color: isDark ? '#38BDF8' : '#0284C7', fontSize: 12, fontWeight: '700' }}>
+              Calendario
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -658,7 +711,7 @@ export default function DashboardScreen() {
             <Text style={styles.filterSummaryText}>
               {filteredTransactions.length} resultados • Total gastos filtrados:{' '}
               <Text style={{ color: '#F87171', fontWeight: '800' }}>
-                ${filteredTotalExpense.toFixed(2)}
+                {formatMoney(filteredTotalExpense, cur)}
               </Text>
             </Text>
           </View>
@@ -669,104 +722,152 @@ export default function DashboardScreen() {
             <Ionicons name="sparkles-outline" size={30} color="#38BDF8" />
             <Text style={styles.emptyStateTitle}>Sin movimientos que coincidan</Text>
             <Text style={styles.emptyStateSub}>
-              Usa el botón "+ Registrar" arriba para anotar un gasto, ingreso o transferencia.
+              Usa los botones de arriba para anotar un gasto, ingreso o transferencia.
             </Text>
           </View>
         ) : (
-          filteredTransactions.map((tx) => {
-            const cat = categories.find((c) => c.id === tx.categoryId);
-            const acc = accounts.find((a) => a.id === tx.accountId);
-            const destAcc = tx.toAccountId
-              ? accounts.find((a) => a.id === tx.toAccountId)
-              : undefined;
+          <>
+            {filteredTransactions.slice(0, MAX_RECENT_TX).map((tx) => {
+              const cat = categories.find((c) => c.id === tx.categoryId);
+              const acc = accounts.find((a) => a.id === tx.accountId);
+              const destAcc = tx.toAccountId
+                ? accounts.find((a) => a.id === tx.toAccountId)
+                : undefined;
 
-            const isTransfer = tx.type === 'transfer';
+              const isTransfer = tx.type === 'transfer';
 
-            return (
-              <TouchableOpacity
-                key={tx.id}
-                style={styles.txRow}
-                activeOpacity={0.75}
-                onPress={() => {
-                  setEditingTx(tx);
-                  setEditTxType(tx.type);
-                  setEditTxAmount(String(tx.amount));
-                  setEditTxFee(tx.fee ? String(tx.fee) : '');
-                  setEditTxDesc(tx.description);
-                  setEditTxDate(tx.date);
-                  setEditTxAccId(tx.accountId);
-                  setEditTxToAccId(tx.toAccountId || accounts[1]?.id || accounts[0]?.id || '');
-                  setEditTxCatId(tx.categoryId);
-                  setEditTxIsAnt(Boolean(tx.isAntExpense || tx.categoryId === 'cat-ant'));
-                }}
-              >
-                <View style={{ marginRight: 12 }}>
-                  <SmartIcon
-                    iconName={isTransfer ? 'swap-horizontal-outline' : cat?.icon}
-                    color={isTransfer ? '#38BDF8' : cat?.color}
-                    titleForAutoBrand={tx.description}
-                  />
-                </View>
-                <View style={styles.txInfo}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Text style={styles.txDescription} numberOfLines={1} ellipsizeMode="tail">
-                      {tx.description}
+              return (
+                <TouchableOpacity
+                  key={tx.id}
+                  style={styles.txRow}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    setEditingTx(tx);
+                    setEditTxType(tx.type);
+                    setEditTxAmount(String(tx.amount));
+                    setEditTxFee(tx.fee ? String(tx.fee) : '');
+                    setEditTxDesc(tx.description);
+                    setEditTxDate(tx.date);
+                    setEditTxAccId(tx.accountId);
+                    setEditTxToAccId(tx.toAccountId || accounts[1]?.id || accounts[0]?.id || '');
+                    setEditTxCatId(tx.categoryId);
+                    setEditTxIsAnt(Boolean(tx.isAntExpense || tx.categoryId === 'cat-ant'));
+                  }}
+                >
+                  <View style={{ marginRight: 12 }}>
+                    <SmartIcon
+                      iconName={isTransfer ? 'swap-horizontal-outline' : cat?.icon}
+                      color={isTransfer ? '#38BDF8' : cat?.color}
+                      titleForAutoBrand={tx.description}
+                    />
+                  </View>
+                  <View style={styles.txInfo}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={styles.txDescription} numberOfLines={1} ellipsizeMode="tail">
+                        {tx.description}
+                      </Text>
+                      {(tx.isAntExpense || tx.categoryId === 'cat-ant') && (
+                        <View
+                          style={{
+                            backgroundColor: '#451A03',
+                            borderWidth: 1,
+                            borderColor: '#F59E0B',
+                            borderRadius: 6,
+                            paddingHorizontal: 6,
+                            paddingVertical: 1,
+                          }}
+                        >
+                          <Text style={{ color: '#FDE68A', fontSize: 10, fontWeight: '800' }}>
+                            🐜 Hormiga
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.txMeta} numberOfLines={1} ellipsizeMode="tail">
+                      {isTransfer
+                        ? `${acc?.name || 'Origen'} → ${destAcc?.name || 'Destino'}`
+                        : `${cat?.name || 'General'} • ${acc?.institution || acc?.name}`}
                     </Text>
-                    {(tx.isAntExpense || tx.categoryId === 'cat-ant') && (
-                      <View
-                        style={{
-                          backgroundColor: '#451A03',
-                          borderWidth: 1,
-                          borderColor: '#F59E0B',
-                          borderRadius: 6,
-                          paddingHorizontal: 6,
-                          paddingVertical: 1,
-                        }}
-                      >
-                        <Text style={{ color: '#FDE68A', fontSize: 10, fontWeight: '800' }}>
-                          🐜 Hormiga
-                        </Text>
-                      </View>
+                    {tx.fee !== undefined && tx.fee > 0 && (
+                      <Text style={styles.feeBadgeText} numberOfLines={1} ellipsizeMode="tail">
+                        Incluye comisión bancaria: -{formatMoney(tx.fee, cur)}
+                      </Text>
                     )}
                   </View>
-                  <Text style={styles.txMeta} numberOfLines={1} ellipsizeMode="tail">
-                    {isTransfer
-                      ? `${acc?.name || 'Origen'} → ${destAcc?.name || 'Destino'}`
-                      : `${cat?.name || 'General'} • ${acc?.institution || acc?.name}`}
-                  </Text>
-                  {tx.fee !== undefined && tx.fee > 0 && (
-                    <Text style={styles.feeBadgeText} numberOfLines={1} ellipsizeMode="tail">
-                      Incluye comisión bancaria: -${tx.fee.toFixed(2)}
+                  <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                    <Text
+                      style={[
+                        styles.txAmount,
+                        {
+                          color:
+                            tx.type === 'income'
+                              ? '#4ADE80'
+                              : tx.type === 'transfer'
+                              ? '#38BDF8'
+                              : '#F8FAFC',
+                        },
+                      ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {tx.type === 'income' ? '+' : tx.type === 'transfer' ? '⇄ ' : '-'}
+                      {formatMoney(tx.amount, cur)}
                     </Text>
-                  )}
-                </View>
-                <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                  <Text
-                    style={[
-                      styles.txAmount,
-                      {
-                        color:
-                          tx.type === 'income'
-                            ? '#4ADE80'
-                            : tx.type === 'transfer'
-                            ? '#38BDF8'
-                            : '#F8FAFC',
-                      },
-                    ]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                  >
-                    {tx.type === 'income' ? '+' : tx.type === 'transfer' ? '⇄ ' : '-'}$
-                    {tx.amount.toFixed(2)}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <Text style={styles.txDate}>{tx.date}</Text>
-                    <Ionicons name="create-outline" size={13} color="#38BDF8" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                      <Text style={styles.txDate}>{tx.date}</Text>
+                      {tx.isApplied === false && (
+                        <View
+                          style={{
+                            backgroundColor: isDark ? '#451A03' : '#FEF3C7',
+                            borderColor: isDark ? '#D97706' : '#F59E0B',
+                            borderWidth: 1,
+                            paddingHorizontal: 6,
+                            paddingVertical: 1,
+                            borderRadius: 6,
+                          }}
+                        >
+                          <Text style={{ color: isDark ? '#FCD34D' : '#B45309', fontSize: 10, fontWeight: '800' }}>
+                            ⏳ Programado
+                          </Text>
+                        </View>
+                      )}
+                      <Ionicons name="create-outline" size={13} color="#38BDF8" />
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                backgroundColor: isDark ? '#1E293B' : '#E0F2FE',
+                borderWidth: 1,
+                borderColor: isDark ? '#334155' : '#BAE6FD',
+                borderRadius: 14,
+                paddingVertical: 13,
+                marginTop: 6,
+                marginBottom: 8,
+              }}
+              activeOpacity={0.75}
+              onPress={() => {
+                setSelectedCalDate(today);
+                const now = new Date();
+                setCalMonth({ year: now.getFullYear(), month: now.getMonth() });
+                setShowCalendarHistoryModal(true);
+              }}
+            >
+              <Ionicons name="calendar" size={18} color={isDark ? '#38BDF8' : '#0284C7'} />
+              <Text style={{ color: isDark ? '#38BDF8' : '#0284C7', fontSize: 13, fontWeight: '800' }}>
+                {filteredTransactions.length > MAX_RECENT_TX
+                  ? `Ver más en Calendario (${filteredTransactions.length - MAX_RECENT_TX} más)`
+                  : `Ver historial en Calendario (${filteredTransactions.length})`}
+              </Text>
+            </TouchableOpacity>
+          </>
         )}
         </View>
       </ScrollView>
@@ -833,7 +934,7 @@ export default function DashboardScreen() {
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Monto ($ USD)</Text>
+                <Text style={styles.inputLabel}>Monto ({cur})</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="0.00"
@@ -879,97 +980,52 @@ export default function DashboardScreen() {
               value={txDate}
               onChange={setTxDate}
             />
+            {txDate > today && (
+              <View
+                style={{
+                  backgroundColor: isDark ? '#451A03' : '#FEF3C7',
+                  borderColor: isDark ? '#D97706' : '#F59E0B',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{ color: isDark ? '#FCD34D' : '#B45309', fontSize: 12, fontWeight: '700' }}>
+                  ⏳ Fecha futura: este monto se aplicará a tu saldo automáticamente el día {txDate}, no hoy.
+                </Text>
+              </View>
+            )}
 
-            <Text style={styles.inputLabel}>
-              {txType === 'transfer' ? 'Cuenta Origen (De dónde sale)' : 'Cuenta'}
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {sortedAccountsForSelection.map((acc) => {
-                const isSelected = selectedAccountId === acc.id;
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.chip,
-                      isSelected && {
-                        borderColor: isDark ? '#38BDF8' : '#0284C7',
-                        backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
-                      },
-                    ]}
-                    onPress={() => setSelectedAccountId(acc.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isSelected && {
-                          color: isDark ? '#38BDF8' : '#0369A1',
-                          fontWeight: '800',
-                        },
-                      ]}
-                    >
-                      {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <AccountSelectorField
+              label={txType === 'transfer' ? 'Cuenta Origen (De dónde sale)' : 'Billetera / Cuenta'}
+              accounts={sortedAccountsForSelection}
+              selectedId={selectedAccountId}
+              onSelect={setSelectedAccountId}
+              currency={cur}
+              isOtherPersonAccount={isOtherPersonAccount}
+              isOwnSavingsAccount={isOwnSavingsAccount}
+            />
 
             {txType === 'transfer' ? (
-              <>
-                <Text style={styles.inputLabel}>Cuenta Destino (A dónde entra)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {sortedAccountsForSelection.map((acc) => {
-                    const isSelected = toAccountId === acc.id;
-                    return (
-                      <TouchableOpacity
-                        key={acc.id}
-                        style={[
-                          styles.chip,
-                          isSelected && {
-                            borderColor: isDark ? '#4ADE80' : '#16A34A',
-                            backgroundColor: isDark ? '#14532D' : '#DCFCE7',
-                          },
-                        ]}
-                        onPress={() => setToAccountId(acc.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            isSelected && {
-                              color: isDark ? '#86EFAC' : '#15803D',
-                              fontWeight: '800',
-                            },
-                          ]}
-                        >
-                          {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
+              <AccountSelectorField
+                label="Cuenta Destino (A dónde entra)"
+                accounts={sortedAccountsForSelection}
+                selectedId={toAccountId}
+                onSelect={setToAccountId}
+                currency={cur}
+                isOtherPersonAccount={isOtherPersonAccount}
+                isOwnSavingsAccount={isOwnSavingsAccount}
+              />
             ) : (
               <>
-                <Text style={styles.inputLabel}>Categoría</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {categories
-                    .filter((c) => c.type === txType)
-                    .map((cat) => (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={[
-                          styles.chip,
-                          selectedCategoryId === cat.id && {
-                            borderColor: cat.color,
-                            backgroundColor: cat.color + '33',
-                          },
-                        ]}
-                        onPress={() => setSelectedCategoryId(cat.id)}
-                      >
-                        <Text style={styles.chipText}>{cat.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                </ScrollView>
+                <CategorySelectorField
+                  label="Categoría"
+                  categories={categories.filter((c) => c.type === txType)}
+                  selectedId={selectedCategoryId}
+                  onSelect={setSelectedCategoryId}
+                />
 
                 {txType === 'expense' && (
                   <View
@@ -1029,8 +1085,8 @@ export default function DashboardScreen() {
         onClose={() => setEditingTx(null)}
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <Text style={[styles.modalTitle, { marginBottom: 0 }]}>
-            Detalle y Edición del Movimiento
+          <Text style={[styles.modalTitle, { marginBottom: 0, flex: 1, marginRight: 8 }]} numberOfLines={1} adjustsFontSizeToFit>
+            Detalle y Edición
           </Text>
           {editingTx && (
             <TouchableOpacity
@@ -1044,6 +1100,7 @@ export default function DashboardScreen() {
                 borderRadius: 8,
                 borderWidth: 1,
                 borderColor: '#7F1D1D',
+                flexShrink: 0,
               }}
               onPress={() => {
                 const idToDelete = editingTx.id;
@@ -1113,7 +1170,7 @@ export default function DashboardScreen() {
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.inputLabel}>Monto ($ USD)</Text>
+            <Text style={styles.inputLabel}>Monto ({cur})</Text>
             <TextInput
               style={styles.input}
               keyboardType="decimal-pad"
@@ -1123,7 +1180,7 @@ export default function DashboardScreen() {
           </View>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.inputLabel}>Comisión ($ USD)</Text>
+            <Text style={styles.inputLabel}>Comisión ({cur})</Text>
             <TextInput
               style={styles.input}
               placeholder="0.00"
@@ -1148,96 +1205,34 @@ export default function DashboardScreen() {
           onChange={setEditTxDate}
         />
 
-        <Text style={styles.inputLabel}>
-          {editTxType === 'transfer' ? 'Cuenta Origen (De dónde salió)' : 'Cuenta / Tarjeta'}
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {sortedAccountsForSelection.map((acc) => {
-            const isSelected = editTxAccId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSelected && {
-                    borderColor: isDark ? '#38BDF8' : '#0284C7',
-                    backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
-                  },
-                ]}
-                onPress={() => setEditTxAccId(acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && {
-                      color: isDark ? '#38BDF8' : '#0369A1',
-                      fontWeight: '800',
-                    },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label={editTxType === 'transfer' ? 'Cuenta Origen (De dónde salió)' : 'Billetera / Cuenta'}
+          accounts={sortedAccountsForSelection}
+          selectedId={editTxAccId}
+          onSelect={setEditTxAccId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+          isOwnSavingsAccount={isOwnSavingsAccount}
+        />
 
         {editTxType === 'transfer' ? (
-          <>
-            <Text style={styles.inputLabel}>Cuenta Destino (A dónde entró)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {sortedAccountsForSelection.map((acc) => {
-                const isSelected = editTxToAccId === acc.id;
-                return (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[
-                      styles.chip,
-                      isSelected && {
-                        borderColor: isDark ? '#4ADE80' : '#16A34A',
-                        backgroundColor: isDark ? '#14532D' : '#DCFCE7',
-                      },
-                    ]}
-                    onPress={() => setEditTxToAccId(acc.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isSelected && {
-                          color: isDark ? '#86EFAC' : '#15803D',
-                          fontWeight: '800',
-                        },
-                      ]}
-                    >
-                      {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </>
+          <AccountSelectorField
+            label="Cuenta Destino (A dónde entró)"
+            accounts={sortedAccountsForSelection}
+            selectedId={editTxToAccId}
+            onSelect={setEditTxToAccId}
+            currency={cur}
+            isOtherPersonAccount={isOtherPersonAccount}
+            isOwnSavingsAccount={isOwnSavingsAccount}
+          />
         ) : (
           <>
-            <Text style={styles.inputLabel}>Categoría</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-              {categories
-                .filter((c) => c.type === editTxType)
-                .map((cat) => (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      styles.chip,
-                      editTxCatId === cat.id && {
-                        borderColor: cat.color,
-                        backgroundColor: cat.color + '33',
-                      },
-                    ]}
-                    onPress={() => setEditTxCatId(cat.id)}
-                  >
-                    <Text style={styles.chipText}>{cat.name}</Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
+            <CategorySelectorField
+              label="Categoría"
+              categories={categories.filter((c) => c.type === editTxType)}
+              selectedId={editTxCatId}
+              onSelect={setEditTxCatId}
+            />
 
             {editTxType === 'expense' && (
               <View
@@ -1417,34 +1412,15 @@ export default function DashboardScreen() {
           })}
         </View>
 
-        <Text style={styles.inputLabel}>3. ¿Con qué cuenta o tarjeta pagaste?</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-          {sortedAccountsForSelection.map((acc) => {
-            const isSelected = antAccId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSelected && {
-                    borderColor: '#F59E0B',
-                    backgroundColor: isDark ? '#451A03' : '#FEF3C7',
-                  },
-                ]}
-                onPress={() => setAntAccId(acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && { color: isDark ? '#FDE68A' : '#92400E', fontWeight: '700' },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="3. ¿Con qué cuenta o tarjeta pagaste?"
+          accounts={sortedAccountsForSelection}
+          selectedId={antAccId}
+          onSelect={setAntAccId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+          isOwnSavingsAccount={isOwnSavingsAccount}
+        />
 
         <View style={styles.modalActions}>
           <TouchableOpacity
@@ -1642,6 +1618,309 @@ export default function DashboardScreen() {
         </View>
       </KeyboardSafeModal>
 
+      {/* Modal de Calendario de Movimientos (Ver más -> Gastos e Ingresos por Día) */}
+      <KeyboardSafeModal
+        visible={showCalendarHistoryModal}
+        animationType="slide"
+        onClose={() => setShowCalendarHistoryModal(false)}
+      >
+        {(() => {
+          const monthNames = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+          ];
+          const firstDay = new Date(calMonth.year, calMonth.month, 1).getDay();
+          const daysInMonth = new Date(calMonth.year, calMonth.month + 1, 0).getDate();
+          const cells: (number | null)[] = [];
+          for (let i = 0; i < firstDay; i++) cells.push(null);
+          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+          const dayTxs = transactions.filter((t) => t.date === selectedCalDate);
+          const dayIncome = dayTxs
+            .filter((t) => t.type === 'income')
+            .reduce((s, t) => s + t.amount, 0);
+          const dayExpense = dayTxs
+            .filter((t) => t.type === 'expense')
+            .reduce((s, t) => s + t.amount + (t.fee || 0), 0);
+
+          return (
+            <>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={styles.modalTitle}>📅 Historial por Día</Text>
+                <TouchableOpacity onPress={() => setShowCalendarHistoryModal(false)}>
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Navegador de Mes */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <TouchableOpacity
+                  style={{ padding: 6, borderRadius: 8, backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }}
+                  onPress={() =>
+                    setCalMonth((prev) =>
+                      prev.month === 0 ? { year: prev.year - 1, month: 11 } : { year: prev.year, month: prev.month - 1 }
+                    )
+                  }
+                >
+                  <Ionicons name="chevron-back" size={18} color={colors.text} />
+                </TouchableOpacity>
+
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>
+                  {monthNames[calMonth.month]} {calMonth.year}
+                </Text>
+
+                <TouchableOpacity
+                  style={{ padding: 6, borderRadius: 8, backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }}
+                  onPress={() =>
+                    setCalMonth((prev) =>
+                      prev.month === 11 ? { year: prev.year + 1, month: 0 } : { year: prev.year, month: prev.month + 1 }
+                    )
+                  }
+                >
+                  <Ionicons name="chevron-forward" size={18} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Cabecera Días */}
+              <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((wd, idx) => (
+                  <Text
+                    key={idx}
+                    style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: colors.textMuted }}
+                  >
+                    {wd}
+                  </Text>
+                ))}
+              </View>
+
+              {/* Cuadrícula de Días */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
+                {cells.map((dayNum, idx) => {
+                  if (dayNum === null) {
+                    return <View key={`empty-${idx}`} style={{ width: '14.28%', height: 40 }} />;
+                  }
+                  const dateStr = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                  const isSelected = selectedCalDate === dateStr;
+                  const isToday = today === dateStr;
+                  const txsForDay = transactions.filter((t) => t.date === dateStr);
+                  const hasInc = txsForDay.some((t) => t.type === 'income');
+                  const hasExp = txsForDay.some((t) => t.type === 'expense');
+                  const hasTr = txsForDay.some((t) => t.type === 'transfer');
+
+                  return (
+                    <TouchableOpacity
+                      key={dateStr}
+                      style={{
+                        width: '14.28%',
+                        height: 40,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 10,
+                        backgroundColor: isSelected
+                          ? '#10B981'
+                          : isToday
+                          ? (isDark ? '#1E293B' : '#E0F2FE')
+                          : 'transparent',
+                        borderWidth: isToday && !isSelected ? 1 : 0,
+                        borderColor: '#38BDF8',
+                      }}
+                      onPress={() => setSelectedCalDate(dateStr)}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: isSelected || isToday ? '800' : '600',
+                          color: isSelected ? '#064E3B' : colors.text,
+                        }}
+                      >
+                        {dayNum}
+                      </Text>
+                      {(hasInc || hasExp || hasTr) && (
+                        <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
+                          {hasInc && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isSelected ? '#064E3B' : '#22C55E' }} />}
+                          {hasExp && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isSelected ? '#7F1D1D' : '#EF4444' }} />}
+                          {hasTr && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: isSelected ? '#0C4A6E' : '#38BDF8' }} />}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Resumen y Lista de Movimientos del Día Seleccionado */}
+              <View
+                style={{
+                  backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                  borderRadius: 12,
+                  padding: 10,
+                  marginBottom: 8,
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800' }}>
+                  Día: {selectedCalDate}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Text style={{ color: '#22C55E', fontSize: 12, fontWeight: '800' }}>
+                    +{formatMoney(dayIncome, cur)}
+                  </Text>
+                  <Text style={{ color: '#F87171', fontSize: 12, fontWeight: '800' }}>
+                    -{formatMoney(dayExpense, cur)}
+                  </Text>
+                </View>
+              </View>
+
+              <ScrollView style={{ maxHeight: 200 }}>
+                {dayTxs.length === 0 ? (
+                  <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 16 }}>
+                    No hubo gastos ni ingresos registrados el {selectedCalDate}.
+                  </Text>
+                ) : (
+                  dayTxs.map((tx) => {
+                    const cat = categories.find((c) => c.id === tx.categoryId);
+                    const acc = accounts.find((a) => a.id === tx.accountId);
+                    return (
+                      <TouchableOpacity
+                        key={tx.id}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.cardBorder,
+                        }}
+                        onPress={() => {
+                          setShowCalendarHistoryModal(false);
+                          setEditingTx(tx);
+                          setEditTxType(tx.type);
+                          setEditTxAmount(String(tx.amount));
+                          setEditTxFee(tx.fee ? String(tx.fee) : '');
+                          setEditTxDesc(tx.description);
+                          setEditTxDate(tx.date);
+                          setEditTxAccId(tx.accountId);
+                          setEditTxToAccId(tx.toAccountId || accounts[1]?.id || accounts[0]?.id || '');
+                          setEditTxCatId(tx.categoryId);
+                          setEditTxIsAnt(Boolean(tx.isAntExpense || tx.categoryId === 'cat-ant'));
+                        }}
+                      >
+                        <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                            {tx.description}
+                          </Text>
+                          <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+                            {cat?.name || 'Movimiento'} • {acc?.name || 'Cuenta'}
+                            {tx.isApplied === false ? ' • ⏳ Programado' : ''}
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: '800',
+                            color: tx.type === 'income' ? '#22C55E' : tx.type === 'transfer' ? '#38BDF8' : '#F87171',
+                          }}
+                        >
+                          {tx.type === 'income' ? '+' : tx.type === 'transfer' ? '⇄ ' : '-'}{formatMoney(tx.amount, cur)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </>
+          );
+        })()}
+      </KeyboardSafeModal>
+
+      {/* Modal Selector Rápido de Moneda desde Inicio (Solo Principal + Secundarias configuradas) */}
+      <KeyboardSafeModal
+        visible={showCurrencyModal}
+        animationType="slide"
+        onClose={() => setShowCurrencyModal(false)}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={styles.modalTitle}>💱 Cambiar Moneda ({cur})</Text>
+          <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 10 }}>
+          Muestra tu moneda principal y las secundarias que agregaste en Ajustes:
+        </Text>
+        <ScrollView style={{ maxHeight: 300 }}>
+          {(() => {
+            const secList = userProfile.secondaryCurrencies || [];
+            const configuredCodes = new Set([cur, ...secList]);
+            return POPULAR_CURRENCIES.filter((c) => configuredCodes.has(c.code)).map((c) => {
+              const isSel = c.code === cur;
+              return (
+                <TouchableOpacity
+                  key={c.code}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 11,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    marginBottom: 6,
+                    backgroundColor: isSel
+                      ? (isDark ? '#064E3B' : '#ECFDF5')
+                      : (isDark ? '#1E293B' : '#F8FAFC'),
+                    borderWidth: 1,
+                    borderColor: isSel ? '#10B981' : colors.cardBorder,
+                  }}
+                  onPress={async () => {
+                    if (c.code !== cur) {
+                      const nextSec = Array.from(new Set([cur, ...secList.filter((x) => x !== c.code)]));
+                      await updateUserProfile({ currency: c.code, secondaryCurrencies: nextSec });
+                    }
+                    setShowCurrencyModal(false);
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 20 }}>{c.flag}</Text>
+                    <View>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: '800' }}>
+                        {c.code} ({c.symbol})
+                      </Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 11 }}>{c.name}</Text>
+                    </View>
+                  </View>
+                  {isSel && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
+                </TouchableOpacity>
+              );
+            });
+          })()}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            paddingVertical: 12,
+            borderRadius: 12,
+            marginTop: 8,
+            backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+            borderWidth: 1,
+            borderColor: colors.cardBorder,
+          }}
+          onPress={() => {
+            setShowCurrencyModal(false);
+            router.push('/(tabs)/categories');
+          }}
+        >
+          <Ionicons name="settings-outline" size={16} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>
+            Agregar monedas secundarias en Ajustes
+          </Text>
+        </TouchableOpacity>
+      </KeyboardSafeModal>
+
       {/* Vista de Onboarding y Animación Inicial */}
       <OnboardingView
         visible={!hasCompletedOnboarding || showOnboardingModal}
@@ -1837,7 +2116,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderWidth: 1,
       borderColor: isDark ? '#0C4436' : '#0E4E3E',
     },
-    subBalanceBox: { flex: 1 },
+    subBalanceBox: { flex: 1, minWidth: 0 },
     subBalanceDivider: { width: 1, backgroundColor: '#0E4E3E', marginHorizontal: 8 },
     subBalanceLabel: { color: '#A7F3D0', fontSize: 10, marginBottom: 2, fontWeight: '600' },
     subBalanceValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },

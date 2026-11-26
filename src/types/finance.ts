@@ -53,6 +53,7 @@ export interface UserProfile {
   email: string;
   phone?: string;
   currency: string;
+  secondaryCurrencies?: string[]; // Monedas secundarias habilitadas para cuentas independientes
   accountType: string; // Ej. "Personal", "Premium", "Negocio"
   isLogged: boolean;
   avatarColor?: string;
@@ -86,6 +87,8 @@ export interface LoanRecord {
   direction: LoanDirection;
   totalAmount: number;
   paidAmount: number;
+  fee?: number; // Comisión asociada al préstamo
+  category?: string; // Categoría o nombre del recurrente compartido (ej. "Netflix")
   notes?: string;
   date: string;
   dueDate?: string;
@@ -127,6 +130,7 @@ export interface Transaction {
   plaidTransactionId?: string;
   recurringId?: string;
   isAntExpense?: boolean; // 🐜 Gasto Hormiga (café, snack, antojo, compra impulsiva)
+  isApplied?: boolean; // false si es fecha futura y aún no se ha aplicado al saldo
 }
 
 export interface RecurringItem {

@@ -71,6 +71,17 @@ export async function sendTestNotificationNow(): Promise<boolean> {
   }
 }
 
+async function cancelNonDailyNotifications(): Promise<void> {
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notif of scheduled) {
+      if (notif.identifier !== 'daily-expense-reminder') {
+        await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+      }
+    }
+  } catch {}
+}
+
 /**
  * Sincroniza todos los recordatorios en Android para los gastos e ingresos recurrentes activos
  * Programa aviso 1 o 2 días antes (según reminderDaysBefore) + aviso el mismo día de vencimiento a las 9:00 AM.
@@ -80,7 +91,7 @@ export async function syncRecurringNotifications(items: RecurringItem[]): Promis
     const granted = await requestAndroidNotificationPermissions();
     if (!granted) return 0;
 
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await cancelNonDailyNotifications();
 
     const now = new Date();
     let scheduledCount = 0;
@@ -158,7 +169,7 @@ export async function syncAllNotifications(
     const granted = await requestAndroidNotificationPermissions();
     if (!granted) return 0;
 
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await cancelNonDailyNotifications();
     const now = new Date();
     let scheduledCount = 0;
 

@@ -101,6 +101,8 @@ async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       direction TEXT NOT NULL,
       total_amount REAL NOT NULL,
       paid_amount REAL NOT NULL DEFAULT 0,
+      fee REAL NOT NULL DEFAULT 0,
+      category TEXT,
       notes TEXT,
       date TEXT NOT NULL,
       due_date TEXT,
@@ -142,6 +144,7 @@ async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
       plaid_transaction_id TEXT UNIQUE,
       recurring_id TEXT,
       is_ant_expense INTEGER NOT NULL DEFAULT 0,
+      is_applied INTEGER NOT NULL DEFAULT 1,
       FOREIGN KEY (account_id) REFERENCES accounts (id),
       FOREIGN KEY (category_id) REFERENCES categories (id)
     );
@@ -185,6 +188,9 @@ async function initDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
   try { await db.execAsync(`ALTER TABLE recurring_items ADD COLUMN my_share_amount REAL DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE recurring_items ADD COLUMN reimbursed_this_cycle INTEGER NOT NULL DEFAULT 0;`); } catch {}
   try { await db.execAsync(`ALTER TABLE loans ADD COLUMN account_id TEXT;`); } catch {}
+  try { await db.execAsync(`ALTER TABLE loans ADD COLUMN category TEXT;`); } catch {}
+  try { await db.execAsync(`ALTER TABLE loans ADD COLUMN fee REAL NOT NULL DEFAULT 0;`); } catch {}
+  try { await db.execAsync(`ALTER TABLE transactions ADD COLUMN is_applied INTEGER NOT NULL DEFAULT 1;`); } catch {}
   try { await db.execAsync(`ALTER TABLE installment_debts ADD COLUMN frequency TEXT DEFAULT 'monthly';`); } catch {}
   try { await db.execAsync(`ALTER TABLE installment_debts ADD COLUMN first_due_date TEXT;`); } catch {}
   try { await db.execAsync(`ALTER TABLE installment_debts ADD COLUMN reminder_days INTEGER DEFAULT 1;`); } catch {}

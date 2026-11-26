@@ -33,3 +33,33 @@ export const POPULAR_CURRENCIES: CurrencyOption[] = [
   { code: 'KRW', symbol: '₩', name: 'Won Surcoreano', flag: '🇰🇷' },
 ];
 
+const ZERO_DECIMAL_CURRENCIES = new Set(['COP', 'CLP', 'JPY', 'KRW', 'PYG']);
+
+export function getCurrencyOption(code?: string): CurrencyOption {
+  const clean = (code || 'USD').toUpperCase();
+  return POPULAR_CURRENCIES.find((c) => c.code === clean) || POPULAR_CURRENCIES[0];
+}
+
+export function getCurrencyPrefix(code?: string): string {
+  const opt = getCurrencyOption(code);
+  if (opt.code === 'USD') return '$';
+  if (opt.symbol === '$') return `${opt.code} $`;
+  return `${opt.symbol} `;
+}
+
+export function formatMoney(
+  amount: number,
+  currencyCode?: string,
+  forceTwoDecimals = false
+): string {
+  const code = (currencyCode || 'USD').toUpperCase();
+  const prefix = getCurrencyPrefix(code);
+  const abs = Math.abs(amount || 0);
+  const useZeroDecimals = !forceTwoDecimals && ZERO_DECIMAL_CURRENCIES.has(code) && Number.isInteger(abs);
+  const formatted = abs.toLocaleString('en-US', {
+    minimumFractionDigits: useZeroDecimals ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return amount < 0 ? `-${prefix}${formatted}` : `${prefix}${formatted}`;
+}
+

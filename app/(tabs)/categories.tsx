@@ -515,9 +515,12 @@ export default function SettingsAndCategoriesScreen() {
               <Ionicons name="cash-outline" size={18} color={isDark ? '#34D399' : '#064E3B'} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Moneda Principal</Text>
+              <Text style={styles.menuRowTitle}>Moneda Principal y Secundarias</Text>
               <Text style={styles.menuRowSub}>
-                {userProfile.currency || 'USD'} • Elige entre 25 monedas
+                Principal: {userProfile.currency || 'USD'}
+                {userProfile.secondaryCurrencies && userProfile.secondaryCurrencies.length > 0
+                  ? ` • Secundarias: ${userProfile.secondaryCurrencies.join(', ')}`
+                  : ' • Toca para agregar secundarias'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -696,7 +699,7 @@ export default function SettingsAndCategoriesScreen() {
               <Ionicons name="shield-checkmark" size={18} color="#064E3B" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.menuRowTitle}>Perk Wallet • v1.0.5</Text>
+              <Text style={styles.menuRowTitle}>Perk Wallet • v1.0.6</Text>
               <Text style={styles.menuRowSub}>Base de datos SQLite local 100% privada</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -769,9 +772,9 @@ export default function SettingsAndCategoriesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card, maxHeight: '82%' }]}>
-            <Text style={styles.modalHeading}>Elegir Moneda Principal</Text>
-            <Text style={[styles.menuRowSub, { marginBottom: 12 }]}>
-              Selecciona la divisa para tus balances y cálculos:
+            <Text style={styles.modalHeading}>Moneda Principal y Secundarias</Text>
+            <Text style={[styles.menuRowSub, { marginBottom: 10 }]}>
+              Toca una moneda para hacerla Principal, o usa "+ Secundaria" para tener cuentas independientes en otras divisas.
             </Text>
 
             <TextInput
@@ -785,6 +788,8 @@ export default function SettingsAndCategoriesScreen() {
             <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
               {filteredCurrencies.map((item: CurrencyOption) => {
                 const isSelected = (userProfile.currency || 'USD') === item.code;
+                const secondaryList = userProfile.secondaryCurrencies || [];
+                const isSecondary = secondaryList.includes(item.code);
                 return (
                   <TouchableOpacity
                     key={item.code}
@@ -797,7 +802,8 @@ export default function SettingsAndCategoriesScreen() {
                       },
                     ]}
                     onPress={async () => {
-                      await updateUserProfile({ currency: item.code });
+                      const nextSec = secondaryList.filter((c) => c !== item.code);
+                      await updateUserProfile({ currency: item.code, secondaryCurrencies: nextSec });
                       setShowCurrencyModal(false);
                       Alert.alert('Moneda Actualizada', `Tu moneda principal ahora es ${item.code} (${item.symbol}).`);
                     }}
@@ -811,8 +817,29 @@ export default function SettingsAndCategoriesScreen() {
                         {item.name}
                       </Text>
                     </View>
-                    {isSelected && (
+                    {isSelected ? (
                       <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                    ) : (
+                      <TouchableOpacity
+                        style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 5,
+                          borderRadius: 8,
+                          backgroundColor: isSecondary ? (isDark ? '#0C4A6E' : '#E0F2FE') : (isDark ? '#1E293B' : '#F1F5F9'),
+                          borderWidth: 1,
+                          borderColor: isSecondary ? '#38BDF8' : colors.cardBorder,
+                        }}
+                        onPress={async () => {
+                          const nextSec = isSecondary
+                            ? secondaryList.filter((c) => c !== item.code)
+                            : [...secondaryList, item.code];
+                          await updateUserProfile({ secondaryCurrencies: nextSec });
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isSecondary ? '#38BDF8' : colors.textMuted }}>
+                          {isSecondary ? '✓ Secundaria' : '+ Secundaria'}
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </TouchableOpacity>
                 );
@@ -1402,7 +1429,7 @@ export default function SettingsAndCategoriesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
-            <Text style={styles.modalHeading}>Perk Wallet • v1.0.5</Text>
+            <Text style={styles.modalHeading}>Perk Wallet • v1.0.6</Text>
             <Text style={[styles.menuRowSub, { lineHeight: 20, marginVertical: 10 }]}>
               Aplicación de finanzas personales, presupuestos y control de deudas con almacenamiento SQLite local 100% privado en tu dispositivo.
             </Text>

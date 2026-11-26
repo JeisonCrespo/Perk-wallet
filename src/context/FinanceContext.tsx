@@ -20,7 +20,7 @@ import {
   getDb,
   seedDefaultCategoriesOnly,
 } from '../db/database';
-import { syncRecurringNotifications, syncAllNotifications } from '../services/notificationService';
+import { syncRecurringNotifications, syncAllNotifications, scheduleDailyExpenseReminder } from '../services/notificationService';
 import { matchAccountForAlert, parseBankAlertsOrCsv } from '../services/bankAutoImportService';
 
 export interface AppBackupPayload {
@@ -64,6 +64,8 @@ interface FinanceContextType {
   netWorthBalance: number;
   hideOtherMoney: boolean;
   toggleHideOtherMoney: () => Promise<void>;
+  hideSavings: boolean;
+  toggleHideSavings: () => Promise<void>;
   isOtherPersonAccount: (account: BankAccount) => boolean;
   isOwnSavingsAccount: (account: BankAccount) => boolean;
   // Cuentas y Tarjetas de Crédito
@@ -75,7 +77,8 @@ interface FinanceContextType {
     newName: string,
     newBalance: number,
     newMask?: string,
-    newOwnerName?: string
+    newOwnerName?: string,
+    newCurrency?: string
   ) => Promise<void>;
   updateCreditCardDetails: (
     accountId: string,
@@ -112,6 +115,8 @@ interface FinanceContextType {
       direction: LoanRecord['direction'];
       totalAmount: number;
       paidAmount?: number;
+      fee?: number;
+      category?: string;
       notes?: string;
       date: string;
       dueDate?: string;
@@ -119,7 +124,7 @@ interface FinanceContextType {
       isSettled?: boolean;
     }
   ) => Promise<void>;
-  registerLoanPayment: (loanId: string, paymentAmount: number, fromAccountId?: string) => Promise<void>;
+  registerLoanPayment: (loanId: string, paymentAmount: number, fromAccountId?: string, fee?: number) => Promise<void>;
   deleteLoanRecord: (loanId: string) => Promise<void>;
   // Rastreador de Cuotas / Deudas (Affirm, Klarna, Afterpay, Tarjetas) + Bola de Nieve / Avalancha
   addInstallmentDebt: (debt: Omit<InstallmentDebt, 'id'>) => Promise<void>;
@@ -258,6 +263,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [driveEmail, setDriveEmail] = useState('');
   const [autoDriveBackupEnabled, setAutoDriveBackupEnabled] = useState(true);
   const [hideOtherMoney, setHideOtherMoney] = useState(false);
+  const [hideSavings, setHideSavings] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [securitySettings, setSecuritySettings] = useState<SecuritySettings>(DEFAULT_SECURITY_SETTINGS);
   const [hasCompletedOnboarding, setHasCompletedOnboardingState] = useState(true);
@@ -266,7 +272,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const db = await getDb();
 
+      // Asegurar columnas nuevas incluso tras Fast Refresh en Expo Go
+      try { await db.execAsync(`ALTER TABLE transactions ADD COLUMN is_applied INTEGER NOT NULL DEFAULT 1;`); } catch {}
+      try { await db.execAsync(`ALTER TABLE loans ADD COLUMN category TEXT;`); } catch {}
+      try { await db.execAsync(`ALTER TABLE loans ADD COLUMN fee REAL NOT NULL DEFAULT 0;`); } catch {}
+
       await seedDefaultCategoriesOnly(db);
+      // Categoría especial para registrar diferencias cuando el usuario ajusta el saldo de una cuenta por gastos olvidados
+      try {
+        await db.runAsync(
+          `INSERT OR IGNORE INTO categories (id, name, type, color, icon, is_custom)
+           VALUES ('cat-adjusted', 'Gastos Modificados', 'expense', '#F59E0B', 'create-outline', 0)`
+        );
+      } catch {}
 
       const savedDriveBackup = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM app_settings WHERE key = 'last_drive_backup_at'"
@@ -305,12 +323,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setHideOtherMoney(savedHideMoney.value === '1');
       }
 
+      const savedHideSavings = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'hide_savings'"
+      );
+      if (savedHideSavings) {
+        setHideSavings(savedHideSavings.value === '1');
+      }
+
       const profileRow = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM app_settings WHERE key = 'user_profile'"
       );
       if (profileRow?.value) {
         try {
-          setUserProfile(JSON.parse(profileRow.value));
+          const parsedProfile = JSON.parse(profileRow.value);
+          setUserProfile(parsedProfile);
+          if (parsedProfile.dailyReminderEnabled) {
+            const parts = (parsedProfile.dailyReminderTime || '20:00').split(':').map(Number);
+            const h = Number.isFinite(parts[0]) ? parts[0] : 20;
+            const m = Number.isFinite(parts[1]) ? parts[1] : 0;
+            scheduleDailyExpenseReminder(h, m).catch(() => {});
+          }
         } catch {}
       }
 
@@ -328,6 +360,59 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
       if (onboardingRow) {
         setHasCompletedOnboardingState(onboardingRow.value === '1' || onboardingRow.value === 'true');
+      }
+
+      // Aplicar transacciones programadas cuya fecha ya llegó (date <= hoy)
+      const todayStr = new Date().toISOString().split('T')[0];
+      const duePendingTx = await db.getAllAsync<any>(
+        'SELECT * FROM transactions WHERE is_applied = 0 AND date <= ?',
+        [todayStr]
+      );
+      for (const ptx of duePendingTx) {
+        const feeVal = Number(ptx.fee || 0);
+        const amt = Number(ptx.amount || 0);
+        const accRow = await db.getFirstAsync<{ type: string }>(
+          'SELECT type FROM accounts WHERE id = ?',
+          [ptx.account_id]
+        );
+        const isCreditCard = accRow?.type === 'credit';
+
+        if (ptx.type === 'transfer' && ptx.to_account_id) {
+          const toAccRow = await db.getFirstAsync<{ type: string }>(
+            'SELECT type FROM accounts WHERE id = ?',
+            [ptx.to_account_id]
+          );
+          await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [
+            amt + feeVal,
+            ptx.account_id,
+          ]);
+          if (toAccRow?.type === 'credit') {
+            await db.runAsync('UPDATE accounts SET balance = MAX(0, balance - ?) WHERE id = ?', [
+              amt,
+              ptx.to_account_id,
+            ]);
+          } else {
+            await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+              amt,
+              ptx.to_account_id,
+            ]);
+          }
+        } else if (ptx.type === 'income') {
+          const netIncome = amt - feeVal;
+          const delta = isCreditCard ? -netIncome : netIncome;
+          await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+            delta,
+            ptx.account_id,
+          ]);
+        } else if (ptx.type === 'expense') {
+          const totalOut = amt + feeVal;
+          const delta = isCreditCard ? totalOut : -totalOut;
+          await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+            delta,
+            ptx.account_id,
+          ]);
+        }
+        await db.runAsync('UPDATE transactions SET is_applied = 1 WHERE id = ?', [ptx.id]);
       }
 
       const rawAccounts = await db.getAllAsync<any>('SELECT * FROM accounts ORDER BY sort_order ASC, rowid ASC');
@@ -399,6 +484,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         direction: l.direction,
         totalAmount: Number(l.total_amount),
         paidAmount: Number(l.paid_amount || 0),
+        fee: Number(l.fee || 0),
+        category: l.category ?? undefined,
         notes: l.notes ?? undefined,
         date: l.date,
         dueDate: l.due_date ?? undefined,
@@ -447,6 +534,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           plaidTransactionId: t.plaid_transaction_id ?? undefined,
           recurringId: t.recurring_id ?? undefined,
           isAntExpense: Boolean(t.is_ant_expense),
+          isApplied: t.is_applied !== undefined ? Boolean(t.is_applied) : true,
         }))
       );
 
@@ -505,6 +593,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
+  const toggleHideSavings = async () => {
+    const nextVal = !hideSavings;
+    setHideSavings(nextVal);
+    const db = await getDb();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('hide_savings', ?)",
+      [nextVal ? '1' : '0']
+    );
+  };
+
   // Helper para identificar si una cuenta pertenece a otra persona
   const isOtherPersonAccount = useCallback((account: BankAccount): boolean => {
     if (!account.ownerName || !account.ownerName.trim()) return false;
@@ -513,14 +611,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return !ownWords.includes(clean);
   }, []);
 
-  // Helper para saber si una cuenta corresponde a Ahorro Propio (por tipo o porque el dueño se marcó como Mío / Ahorro)
+  // Helper para saber si una cuenta corresponde a Ahorro Propio (solo si no está incluida en el saldo total y es savings o marcada como Ahorro)
   const isOwnSavingsAccount = useCallback(
     (account: BankAccount): boolean => {
       if (isOtherPersonAccount(account)) return false;
+      // Si el usuario activó "Incluida en mi Saldo Total", pertenece a su balance disponible
+      if (account.includeInTotal) return false;
       if (account.type === 'savings') return true;
       if (account.ownerName) {
         const clean = account.ownerName.trim().toLowerCase();
-        if (clean.includes('mío') || clean.includes('mio') || clean.includes('ahorro') || clean.includes('personal') || clean.includes('propio')) {
+        if (clean.includes('ahorro')) {
           return true;
         }
       }
@@ -529,34 +629,40 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [isOtherPersonAccount]
   );
 
+  const activeMainCurrency = userProfile.currency || 'USD';
+  const hasMultiCurrency = Boolean(userProfile.secondaryCurrencies && userProfile.secondaryCurrencies.length > 0);
+  const matchesActiveCurrency = useCallback(
+    (acc: BankAccount) => !hasMultiCurrency || (acc.currency || 'USD') === activeMainCurrency,
+    [hasMultiCurrency, activeMainCurrency]
+  );
+
   // Dinero total de otras personas guardado o administrado (se suman entre ellos, nunca con el saldo propio)
   const otherPeopleTotalBalance = useMemo(() => {
     return accounts
-      .filter((a) => isOtherPersonAccount(a))
+      .filter((a) => isOtherPersonAccount(a) && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOtherPersonAccount]);
+  }, [accounts, isOtherPersonAccount, matchesActiveCurrency]);
 
-  // Dinero de Ahorro Propio: Cuentas de tipo savings O donde se especificó "Mío / Ahorro"
+  // Dinero de Ahorro Propio: Cuentas separadas de tipo savings O donde se especificó "Mío (Ahorro)"
   const ownSavingsBalance = useMemo(() => {
     return accounts
-      .filter((a) => isOwnSavingsAccount(a) && a.type !== 'credit')
+      .filter((a) => isOwnSavingsAccount(a) && a.type !== 'credit' && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOwnSavingsAccount]);
+  }, [accounts, isOwnSavingsAccount, matchesActiveCurrency]);
 
-  // Saldo Propio Disponible (Checking / efectivo propio para gasto diario)
-  // Excluye dinero ajeno Y excluye cualquier cuenta que sea de ahorro o marcada como Mío/Ahorro
+  // Saldo Propio Disponible (Checking / efectivo propio o cualquier cuenta propia que el usuario incluya en su saldo total)
   const includedTotalBalance = useMemo(() => {
     return accounts
-      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a) && !isOwnSavingsAccount(a) && a.type !== 'credit')
+      .filter((a) => a.includeInTotal && !isOtherPersonAccount(a) && a.type !== 'credit' && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOtherPersonAccount, isOwnSavingsAccount]);
+  }, [accounts, isOtherPersonAccount, matchesActiveCurrency]);
 
   // Cuentas separadas propias (excluidas del saldo de gasto diario, pero propias)
   const excludedTotalBalance = useMemo(() => {
     return accounts
-      .filter((a) => !a.includeInTotal && !isOtherPersonAccount(a))
+      .filter((a) => !a.includeInTotal && !isOtherPersonAccount(a) && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + a.balance, 0);
-  }, [accounts, isOtherPersonAccount]);
+  }, [accounts, isOtherPersonAccount, matchesActiveCurrency]);
 
   // PATRIMONIO NETO REAL DEL USUARIO:
   // Suma únicamente los activos PROPIOS del usuario (cuentas incluidas y separadas propias,
@@ -564,13 +670,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Las cuentas separadas o guardadas para OTRAS PERSONAS nunca se suman aquí.
   const netWorthBalance = useMemo(() => {
     const ownAssets = accounts
-      .filter((a) => !isOtherPersonAccount(a) && a.type !== 'credit')
+      .filter((a) => !isOtherPersonAccount(a) && a.type !== 'credit' && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + a.balance, 0);
     const ownCreditDebt = accounts
-      .filter((a) => !isOtherPersonAccount(a) && a.type === 'credit')
+      .filter((a) => !isOtherPersonAccount(a) && a.type === 'credit' && matchesActiveCurrency(a))
       .reduce((sum, a) => sum + Math.abs(a.balance), 0);
     return ownAssets - ownCreditDebt;
-  }, [accounts, isOtherPersonAccount]);
+  }, [accounts, isOtherPersonAccount, matchesActiveCurrency]);
 
   const toggleAccountIncludeInTotal = async (accountId: string) => {
     const db = await getDb();
@@ -651,19 +757,65 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     newName: string,
     newBalance: number,
     newMask?: string,
-    newOwnerName?: string
+    newOwnerName?: string,
+    newCurrency?: string
   ) => {
     const db = await getDb();
+    const cleanOwner = newOwnerName?.trim() || '';
+    const lowerOwner = cleanOwner.toLowerCase();
+    const targetAcc = accounts.find((a) => a.id === accountId);
+
+    let nextIncludeInTotal = targetAcc?.includeInTotal ?? true;
+    if (cleanOwner) {
+      const ownBalanceWords = ['yo', 'mío', 'mio', 'mi dinero', 'personal', 'propio', 'jeison', 'me', 'propia', 'mía', 'mia'];
+      if (ownBalanceWords.includes(lowerOwner)) {
+        // Si se marca explícitamente como "Mío" (sin "ahorro"), se suma a su saldo disponible
+        nextIncludeInTotal = true;
+      } else {
+        // Si se marca como "Mío (Ahorro)" o dinero de otra persona, se separa del saldo diario
+        nextIncludeInTotal = false;
+      }
+    }
+
+    const finalCurrency = newCurrency || targetAcc?.currency || 'USD';
+
     await db.runAsync(
-      `UPDATE accounts SET name = ?, balance = ?, mask = ?, owner_name = ? WHERE id = ?`,
+      `UPDATE accounts SET name = ?, balance = ?, mask = ?, owner_name = ?, include_in_total = ?, currency = ? WHERE id = ?`,
       [
         newName.trim(),
         newBalance,
         newMask?.trim() || null,
-        newOwnerName?.trim() || null,
+        cleanOwner || null,
+        nextIncludeInTotal ? 1 : 0,
+        finalCurrency,
         accountId,
       ]
     );
+
+    // Si el usuario redujo su saldo (o aumentó deuda en tarjeta) al editar la cuenta,
+    // registrar la diferencia en "Gastos Modificados" para rastrear gastos olvidados
+    if (targetAcc && !isOtherPersonAccount(targetAcc)) {
+      const oldBal = targetAcc.balance;
+      const isCredit = targetAcc.type === 'credit';
+      const forgottenExpense = isCredit ? newBalance - oldBal : oldBal - newBalance;
+      if (forgottenExpense > 0.009) {
+        const txId = `tx-adj-${Date.now()}`;
+        const todayStr = new Date().toISOString().split('T')[0];
+        await db.runAsync(
+          `INSERT INTO transactions (
+            id, account_id, category_id, type, amount, fee, description, date, is_from_plaid, is_ant_expense, is_applied
+          ) VALUES (?, ?, 'cat-adjusted', 'expense', ?, 0, ?, ?, 0, 0, 1)`,
+          [
+            txId,
+            accountId,
+            Number(forgottenExpense.toFixed(2)),
+            `Gasto olvidado / Ajuste: ${newName.trim()}`,
+            todayStr,
+          ]
+        );
+      }
+    }
+
     await refreshAll();
   };
 
@@ -904,14 +1056,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addLoanRecord = async (loan: Omit<LoanRecord, 'id' | 'paidAmount' | 'isSettled'>) => {
     const db = await getDb();
     const id = `loan-${Date.now()}`;
+    const feeVal = loan.fee && loan.fee > 0 ? loan.fee : 0;
     await db.runAsync(
-      `INSERT INTO loans (id, person_name, direction, total_amount, paid_amount, notes, date, due_date, is_settled, account_id)
-       VALUES (?, ?, ?, ?, 0, ?, ?, ?, 0, ?)`,
+      `INSERT INTO loans (id, person_name, direction, total_amount, paid_amount, fee, category, notes, date, due_date, is_settled, account_id)
+       VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?)`,
       [
         id,
         loan.personName.trim(),
         loan.direction,
         loan.totalAmount,
+        feeVal,
+        loan.category?.trim() || null,
         loan.notes || null,
         loan.date,
         loan.dueDate || null,
@@ -919,7 +1074,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ]
     );
 
-    // Si asoció una cuenta bancaria, registrar opcionalmente el movimiento
+    // Si asoció una cuenta bancaria, registrar opcionalmente el movimiento (incluyendo comisión)
     if (loan.accountId) {
       if (loan.direction === 'lent') {
         // Presté dinero -> Salida de mi cuenta
@@ -928,7 +1083,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           categoryId: 'cat-services',
           type: 'expense',
           amount: loan.totalAmount,
-          description: `Préstamo entregado a: ${loan.personName.trim()}`,
+          fee: feeVal,
+          description: `Préstamo entregado a: ${loan.personName.trim()}${loan.category ? ` (${loan.category})` : ''}`,
           date: loan.date,
         });
       } else {
@@ -938,7 +1094,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           categoryId: 'cat-income-other',
           type: 'income',
           amount: loan.totalAmount,
-          description: `Préstamo recibido de: ${loan.personName.trim()}`,
+          fee: feeVal,
+          description: `Préstamo recibido de: ${loan.personName.trim()}${loan.category ? ` (${loan.category})` : ''}`,
           date: loan.date,
         });
       }
@@ -954,6 +1111,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       direction: LoanRecord['direction'];
       totalAmount: number;
       paidAmount?: number;
+      fee?: number;
+      category?: string;
       notes?: string;
       date: string;
       dueDate?: string;
@@ -964,13 +1123,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const db = await getDb();
     const target = loans.find((l) => l.id === loanId);
     const paid = updates.paidAmount !== undefined ? updates.paidAmount : (target?.paidAmount ?? 0);
+    const feeVal = updates.fee !== undefined ? updates.fee : (target?.fee ?? 0);
     const settled = updates.isSettled !== undefined
       ? (updates.isSettled ? 1 : 0)
       : (paid >= updates.totalAmount ? 1 : 0);
 
     await db.runAsync(
       `UPDATE loans
-       SET person_name = ?, direction = ?, total_amount = ?, paid_amount = ?,
+       SET person_name = ?, direction = ?, total_amount = ?, paid_amount = ?, fee = ?, category = ?,
            notes = ?, date = ?, due_date = ?, is_settled = ?, account_id = ?
        WHERE id = ?`,
       [
@@ -978,6 +1138,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updates.direction,
         updates.totalAmount,
         paid,
+        feeVal,
+        updates.category?.trim() || null,
         updates.notes || null,
         updates.date,
         updates.dueDate || null,
@@ -989,10 +1151,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await refreshAll();
   };
 
-  const registerLoanPayment = async (loanId: string, paymentAmount: number, fromAccountId?: string) => {
+  const registerLoanPayment = async (
+    loanId: string,
+    paymentAmount: number,
+    fromAccountId?: string,
+    fee: number = 0
+  ) => {
     const target = loans.find((l) => l.id === loanId);
     if (!target || paymentAmount <= 0) return;
 
+    const cleanFee = fee > 0 ? fee : 0;
     const newPaid = Math.min(target.totalAmount, target.paidAmount + paymentAmount);
     const settled = newPaid >= target.totalAmount ? 1 : 0;
 
@@ -1002,27 +1170,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       [newPaid, settled, loanId]
     );
 
-    // Si indicó cuenta, registrar el movimiento correspondiente
+    // Si indicó cuenta, registrar el movimiento correspondiente (sumando o descontando con su comisión)
     if (fromAccountId) {
       const today = new Date().toISOString().split('T')[0];
+      const catSuffix = target.category ? ` (${target.category})` : '';
       if (target.direction === 'lent') {
-        // Me devolvieron dinero -> Ingreso
+        // Me devolvieron dinero -> Ingreso a mi cuenta
         await addTransaction({
           accountId: fromAccountId,
           categoryId: 'cat-income-other',
           type: 'income',
           amount: paymentAmount,
-          description: `Cobro de préstamo: ${target.personName}`,
+          fee: cleanFee,
+          description: `Cobro de préstamo${catSuffix}: ${target.personName}`,
           date: today,
         });
       } else {
-        // Pagué lo que debía -> Gasto
+        // Pagué lo que debía -> Gasto de mi cuenta
         await addTransaction({
           accountId: fromAccountId,
           categoryId: 'cat-services',
           type: 'expense',
           amount: paymentAmount,
-          description: `Pago de préstamo a: ${target.personName}`,
+          fee: cleanFee,
+          description: `Pago de préstamo${catSuffix} a: ${target.personName}`,
           date: today,
         });
       }
@@ -1208,13 +1379,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'isFromPlaid'>) => {
     const db = await getDb();
+    try { await db.execAsync(`ALTER TABLE transactions ADD COLUMN is_applied INTEGER NOT NULL DEFAULT 1;`); } catch {}
     const id = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
     const feeVal = tx.fee && tx.fee > 0 ? tx.fee : 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const shouldApplyNow = tx.date <= todayStr;
 
     await db.runAsync(
       `INSERT INTO transactions (
-        id, account_id, to_account_id, category_id, type, amount, fee, description, merchant_name, date, is_from_plaid, recurring_id, is_ant_expense
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        id, account_id, to_account_id, category_id, type, amount, fee, description, merchant_name, date, is_from_plaid, recurring_id, is_ant_expense, is_applied
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
       [
         id,
         tx.accountId,
@@ -1228,26 +1402,29 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         tx.date,
         tx.recurringId ?? null,
         tx.isAntExpense || tx.categoryId === 'cat-ant' ? 1 : 0,
+        shouldApplyNow ? 1 : 0,
       ]
     );
 
-    const acc = accounts.find((a) => a.id === tx.accountId);
-    const isCreditCard = acc?.type === 'credit';
+    if (shouldApplyNow) {
+      const acc = accounts.find((a) => a.id === tx.accountId);
+      const isCreditCard = acc?.type === 'credit';
 
-    if (tx.type === 'income') {
-      const netIncome = tx.amount - feeVal;
-      const delta = isCreditCard ? -netIncome : netIncome;
-      await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
-        delta,
-        tx.accountId,
-      ]);
-    } else if (tx.type === 'expense') {
-      const totalOut = tx.amount + feeVal;
-      const delta = isCreditCard ? totalOut : -totalOut;
-      await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
-        delta,
-        tx.accountId,
-      ]);
+      if (tx.type === 'income') {
+        const netIncome = tx.amount - feeVal;
+        const delta = isCreditCard ? -netIncome : netIncome;
+        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+          delta,
+          tx.accountId,
+        ]);
+      } else if (tx.type === 'expense') {
+        const totalOut = tx.amount + feeVal;
+        const delta = isCreditCard ? totalOut : -totalOut;
+        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+          delta,
+          tx.accountId,
+        ]);
+      }
     }
 
     await refreshAll();
@@ -1267,6 +1444,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const fromAcc = accounts.find((a) => a.id === fromAccountId);
     const toAcc = accounts.find((a) => a.id === toAccountId);
     const cleanFee = fee > 0 ? fee : 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const shouldApplyNow = date <= todayStr;
 
     const txId = `tx-transfer-${Date.now()}`;
     const autoDesc =
@@ -1275,26 +1454,28 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     await db.runAsync(
       `INSERT INTO transactions (
-        id, account_id, to_account_id, category_id, type, amount, fee, description, date, is_from_plaid
-      ) VALUES (?, ?, ?, 'cat-fees', 'transfer', ?, ?, ?, ?, 0)`,
-      [txId, fromAccountId, toAccountId, amount, cleanFee, autoDesc, date]
+        id, account_id, to_account_id, category_id, type, amount, fee, description, date, is_from_plaid, is_applied
+      ) VALUES (?, ?, ?, 'cat-fees', 'transfer', ?, ?, ?, ?, 0, ?)`,
+      [txId, fromAccountId, toAccountId, amount, cleanFee, autoDesc, date, shouldApplyNow ? 1 : 0]
     );
 
-    await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [
-      amount + cleanFee,
-      fromAccountId,
-    ]);
+    if (shouldApplyNow) {
+      await db.runAsync('UPDATE accounts SET balance = balance - ? WHERE id = ?', [
+        amount + cleanFee,
+        fromAccountId,
+      ]);
 
-    if (toAcc?.type === 'credit') {
-      await db.runAsync('UPDATE accounts SET balance = MAX(0, balance - ?) WHERE id = ?', [
-        amount,
-        toAccountId,
-      ]);
-    } else {
-      await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
-        amount,
-        toAccountId,
-      ]);
+      if (toAcc?.type === 'credit') {
+        await db.runAsync('UPDATE accounts SET balance = MAX(0, balance - ?) WHERE id = ?', [
+          amount,
+          toAccountId,
+        ]);
+      } else {
+        await db.runAsync('UPDATE accounts SET balance = balance + ? WHERE id = ?', [
+          amount,
+          toAccountId,
+        ]);
+      }
     }
 
     await refreshAll();
@@ -1392,7 +1573,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = transactions.find((t) => t.id === txId);
     if (!target) return;
 
-    await revertTxBalanceEffect(db, target);
+    if (target.isApplied !== false) {
+      await revertTxBalanceEffect(db, target);
+    }
     await db.runAsync('DELETE FROM transactions WHERE id = ?', [txId]);
     await refreshAll();
   };
@@ -1415,8 +1598,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = transactions.find((t) => t.id === txId);
     if (!target || updated.amount <= 0) return;
 
-    // 1. Revertir el efecto del movimiento anterior en los saldos
-    await revertTxBalanceEffect(db, target);
+    // 1. Revertir el efecto del movimiento anterior en los saldos (solo si ya se había aplicado)
+    if (target.isApplied !== false) {
+      await revertTxBalanceEffect(db, target);
+    }
 
     // 2. Actualizar el registro en la base de datos
     const cleanFee = updated.fee && updated.fee > 0 ? updated.fee : 0;
@@ -1424,10 +1609,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updated.isAntExpense !== undefined
         ? updated.isAntExpense
         : updated.categoryId === 'cat-ant' || Boolean(target.isAntExpense);
+    const finalDate = updated.date.trim() || target.date;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const shouldApplyNow = finalDate <= todayStr;
 
     await db.runAsync(
       `UPDATE transactions
-       SET account_id = ?, to_account_id = ?, category_id = ?, type = ?, amount = ?, fee = ?, description = ?, merchant_name = ?, date = ?, is_ant_expense = ?
+       SET account_id = ?, to_account_id = ?, category_id = ?, type = ?, amount = ?, fee = ?, description = ?, merchant_name = ?, date = ?, is_ant_expense = ?, is_applied = ?
        WHERE id = ?`,
       [
         updated.accountId,
@@ -1438,20 +1626,23 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         cleanFee,
         updated.description.trim(),
         updated.description.trim(),
-        updated.date.trim() || target.date,
+        finalDate,
         isAnt ? 1 : 0,
+        shouldApplyNow ? 1 : 0,
         txId,
       ]
     );
 
-    // 3. Aplicar el nuevo efecto en los saldos
-    await applyTxBalanceEffect(db, {
-      accountId: updated.accountId,
-      toAccountId: updated.type === 'transfer' ? updated.toAccountId : undefined,
-      type: updated.type,
-      amount: updated.amount,
-      fee: cleanFee,
-    });
+    // 3. Aplicar el nuevo efecto en los saldos (solo si la fecha ya llegó)
+    if (shouldApplyNow) {
+      await applyTxBalanceEffect(db, {
+        accountId: updated.accountId,
+        toAccountId: updated.type === 'transfer' ? updated.toAccountId : undefined,
+        type: updated.type,
+        amount: updated.amount,
+        fee: cleanFee,
+      });
+    }
 
     await refreshAll();
   };
@@ -1597,8 +1788,58 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       recurringId: item.id,
     });
 
-    const nextCycleDate = calculateNextCycleDate(item.nextDueDate, item.frequency);
     const db = await getDb();
+
+    // Si es un pago compartido y aún no le han pagado, enviar la parte ajena a Préstamos bajo la categoría del recurrente
+    if (item.isShared && !item.reimbursedThisCycle && item.type === 'expense') {
+      const peopleCount = item.sharedPeopleCount && item.sharedPeopleCount > 1 ? item.sharedPeopleCount : 2;
+      const myShare = item.myShareAmount && item.myShareAmount > 0 ? item.myShareAmount : finalAmount / peopleCount;
+      const owedByOthers = Math.max(0, Number((finalAmount - myShare).toFixed(2)));
+
+      if (owedByOthers > 0) {
+        const sharedNames = item.sharedWithNames?.trim() || 'Compartido';
+        // Buscar si ya existe un préstamo pendiente del mismo gasto recurrente y misma persona para sumarlo en uno solo
+        const existingLoan = await db.getFirstAsync<{ id: string; total_amount: number }>(
+          `SELECT id, total_amount FROM loans
+           WHERE is_settled = 0
+             AND direction = 'lent'
+             AND LOWER(TRIM(COALESCE(category, ''))) = LOWER(TRIM(?))
+             AND LOWER(TRIM(person_name)) = LOWER(TRIM(?))
+           LIMIT 1`,
+          [item.title, sharedNames]
+        );
+
+        if (existingLoan) {
+          const newTotal = Number((Number(existingLoan.total_amount) + owedByOthers).toFixed(2));
+          await db.runAsync(
+            `UPDATE loans SET total_amount = ?, date = ?, notes = ? WHERE id = ?`,
+            [
+              newTotal,
+              today,
+              `Acumulado de ${item.title} (Último cargo: ${today})`,
+              existingLoan.id,
+            ]
+          );
+        } else {
+          const loanId = `loan-shared-${Date.now()}`;
+          await db.runAsync(
+            `INSERT INTO loans (id, person_name, direction, total_amount, paid_amount, fee, category, notes, date, due_date, is_settled, account_id)
+             VALUES (?, ?, 'lent', ?, 0, 0, ?, ?, ?, NULL, 0, ?)`,
+            [
+              loanId,
+              sharedNames,
+              owedByOthers,
+              item.title,
+              `Parte compartida de ${item.title} (Mi parte: $${myShare.toFixed(2)})`,
+              today,
+              item.accountId,
+            ]
+          );
+        }
+      }
+    }
+
+    const nextCycleDate = calculateNextCycleDate(item.nextDueDate, item.frequency);
     await db.runAsync(
       `UPDATE recurring_items SET next_due_date = ?, postponed_until = NULL, reimbursed_this_cycle = 0 WHERE id = ?`,
       [nextCycleDate, recurringId]
@@ -1972,6 +2213,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         netWorthBalance,
         hideOtherMoney,
         toggleHideOtherMoney,
+        hideSavings,
+        toggleHideSavings,
         isOtherPersonAccount,
         isOwnSavingsAccount,
         toggleAccountIncludeInTotal,

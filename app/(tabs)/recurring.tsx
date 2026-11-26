@@ -23,8 +23,10 @@ import {
 } from '../../src/types/finance';
 import { BRAND_PRESETS, GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { AccountSelectorField, CategorySelectorField } from '../../src/components/PickerModal';
 import { DateField } from '../../src/components/DatePickerModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
+import { formatMoney } from '../../src/constants/currencies';
 
 type ControlSubTab = 'recurring' | 'debts' | 'loans' | 'goals';
 
@@ -109,7 +111,10 @@ export default function ControlScreen() {
     addSavingsGoal,
     updateSavingsGoalAmount,
     deleteSavingsGoal,
+    userProfile,
   } = useFinance();
+
+  const cur = userProfile.currency || 'USD';
 
   const scrollRef = useRef<any>(null);
 
@@ -122,12 +127,41 @@ export default function ControlScreen() {
 
   const [subTab, setSubTab] = useState<ControlSubTab>('recurring');
 
-  // Ordenar cuentas para mostrar las propias primero
+  // Filtrar cuentas, recurrentes, cuotas y préstamos por la moneda/país activo
+  const currencyAccounts = useMemo(() => {
+    return accounts.filter((a) => (a.currency || 'USD') === cur);
+  }, [accounts, cur]);
+
+  const accCurrencyMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of accounts) {
+      map.set(a.id, a.currency || 'USD');
+    }
+    return map;
+  }, [accounts]);
+
+  const currencyRecurringItems = useMemo(() => {
+    return recurringItems.filter((r) => (accCurrencyMap.get(r.accountId) || 'USD') === cur);
+  }, [recurringItems, accCurrencyMap, cur]);
+
+  const currencyDebts = useMemo(() => {
+    return installmentDebts.filter((d) =>
+      d.accountId ? (accCurrencyMap.get(d.accountId) || 'USD') === cur : cur === 'USD'
+    );
+  }, [installmentDebts, accCurrencyMap, cur]);
+
+  const currencyLoans = useMemo(() => {
+    return loans.filter((l) =>
+      l.accountId ? (accCurrencyMap.get(l.accountId) || 'USD') === cur : cur === 'USD'
+    );
+  }, [loans, accCurrencyMap, cur]);
+
+  // Ordenar cuentas para mostrar las propias primero (solo de la moneda activa)
   const sortedAccounts = useMemo(() => {
-    const own = accounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
-    const separated = accounts.filter((a) => isOtherPersonAccount(a) || !a.includeInTotal);
+    const own = currencyAccounts.filter((a) => !isOtherPersonAccount(a) && a.includeInTotal);
+    const separated = currencyAccounts.filter((a) => isOtherPersonAccount(a) || !a.includeInTotal);
     return [...own, ...separated];
-  }, [accounts, isOtherPersonAccount]);
+  }, [currencyAccounts, isOtherPersonAccount]);
 
   // Gesto de volver atrás en Android: si está en Cuotas, Préstamos o Metas, regresa a Recurrentes primero
   useEffect(() => {
@@ -206,11 +240,14 @@ export default function ControlScreen() {
   const [personName, setPersonName] = useState('');
   const [loanDirection, setLoanDirection] = useState<LoanDirection>('lent');
   const [loanAmount, setLoanAmount] = useState('');
+  const [loanFee, setLoanFee] = useState('');
+  const [loanCategory, setLoanCategory] = useState('');
   const [loanNotes, setLoanNotes] = useState('');
   const [loanDueDate, setLoanDueDate] = useState('');
   const [loanAccountId, setLoanAccountId] = useState('');
   const [payingLoanId, setPayingLoanId] = useState<string | null>(null);
   const [loanPaymentInput, setLoanPaymentInput] = useState('');
+  const [loanPayFee, setLoanPayFee] = useState('');
   const [loanPayAccountId, setLoanPayAccountId] = useState('');
 
   const openNewDebtModal = () => {
@@ -258,9 +295,11 @@ export default function ControlScreen() {
     setPersonName('');
     setLoanDirection('lent');
     setLoanAmount('');
+    setLoanFee('');
+    setLoanCategory('');
     setLoanNotes('');
     setLoanDueDate('');
-    setLoanAccountId(accounts[0]?.id || '');
+    setLoanAccountId(sortedAccounts[0]?.id || accounts[0]?.id || '');
     setShowLoanModal(true);
   };
 
@@ -269,6 +308,8 @@ export default function ControlScreen() {
     setPersonName(loan.personName);
     setLoanDirection(loan.direction);
     setLoanAmount(String(loan.totalAmount));
+    setLoanFee(loan.fee && loan.fee > 0 ? String(loan.fee) : '');
+    setLoanCategory(loan.category || '');
     setLoanNotes(loan.notes || '');
     setLoanDueDate(loan.dueDate || '');
     setLoanAccountId(loan.accountId || '');
@@ -445,6 +486,7 @@ export default function ControlScreen() {
 
   const handleSaveLoan = async () => {
     const parsed = parseFloat(loanAmount);
+    const parsedFee = parseFloat(loanFee) || 0;
     if (!personName.trim() || !parsed || parsed <= 0) return;
 
     if (editingLoan) {
@@ -453,6 +495,8 @@ export default function ControlScreen() {
         direction: loanDirection,
         totalAmount: parsed,
         paidAmount: editingLoan.paidAmount,
+        fee: parsedFee,
+        category: loanCategory.trim() || undefined,
         notes: loanNotes.trim() || undefined,
         date: editingLoan.date,
         dueDate: loanDueDate.trim() || undefined,
@@ -464,6 +508,8 @@ export default function ControlScreen() {
         personName: personName.trim(),
         direction: loanDirection,
         totalAmount: parsed,
+        fee: parsedFee,
+        category: loanCategory.trim() || undefined,
         notes: loanNotes.trim() || undefined,
         date: new Date().toISOString().split('T')[0],
         dueDate: loanDueDate.trim() || undefined,
@@ -501,8 +547,8 @@ export default function ControlScreen() {
 
   // Resumen de Suscripciones Compartidas (Netflix, Spotify, etc.)
   const sharedSubscriptions = useMemo(
-    () => recurringItems.filter((r) => r.isShared && r.type === 'expense'),
-    [recurringItems]
+    () => currencyRecurringItems.filter((r) => r.isShared && r.type === 'expense'),
+    [currencyRecurringItems]
   );
 
   const sharedStats = useMemo(() => {
@@ -529,8 +575,8 @@ export default function ControlScreen() {
 
   // Ordenamiento de Deudas / Cuotas según Método Bola de Nieve ❄️ vs Avalancha 🏔️
   const sortedDebts = useMemo(() => {
-    const active = installmentDebts.filter((d) => d.remainingBalance > 0);
-    const settled = installmentDebts.filter((d) => d.remainingBalance <= 0);
+    const active = currencyDebts.filter((d) => d.remainingBalance > 0);
+    const settled = currencyDebts.filter((d) => d.remainingBalance <= 0);
 
     active.sort((a, b) => {
       if (payoffStrategy === 'snowball') {
@@ -549,19 +595,19 @@ export default function ControlScreen() {
     });
 
     return [...active, ...settled];
-  }, [installmentDebts, payoffStrategy]);
+  }, [currencyDebts, payoffStrategy]);
 
   const totalDebtRemaining = useMemo(
-    () => installmentDebts.reduce((sum, d) => sum + d.remainingBalance, 0),
-    [installmentDebts]
+    () => currencyDebts.reduce((sum, d) => sum + d.remainingBalance, 0),
+    [currencyDebts]
   );
 
   const totalMinimumMonthly = useMemo(
     () =>
-      installmentDebts
+      currencyDebts
         .filter((d) => d.remainingBalance > 0)
         .reduce((sum, d) => sum + d.minimumPayment, 0),
-    [installmentDebts]
+    [currencyDebts]
   );
 
   const estimatedMonthsToPayoffAll = useMemo(() => {
@@ -571,12 +617,12 @@ export default function ControlScreen() {
     return Math.ceil(totalDebtRemaining / monthlyPower);
   }, [totalDebtRemaining, totalMinimumMonthly, extraMonthlySnowball]);
 
-  // Totales de préstamos pendientes
-  const totalOwedToMe = loans
+  // Totales de préstamos pendientes (filtrados por moneda activa)
+  const totalOwedToMe = currencyLoans
     .filter((l) => l.direction === 'lent' && !l.isSettled)
     .reduce((sum, l) => sum + (l.totalAmount - l.paidAmount), 0);
 
-  const totalIOwe = loans
+  const totalIOwe = currencyLoans
     .filter((l) => l.direction === 'borrowed' && !l.isSettled)
     .reduce((sum, l) => sum + (l.totalAmount - l.paidAmount), 0);
 
@@ -708,14 +754,14 @@ export default function ControlScreen() {
             )}
 
             <View style={styles.headerSpread}>
-              <Text style={styles.sectionTitle}>Programados ({recurringItems.length})</Text>
+              <Text style={styles.sectionTitle}>Programados ({currencyRecurringItems.length})</Text>
               <TouchableOpacity style={styles.newBtn} onPress={openAddRecurringModal}>
                 <Ionicons name="add" size={18} color="#0F172A" />
                 <Text style={styles.newBtnText}>Nuevo Recurrente</Text>
               </TouchableOpacity>
             </View>
 
-            {recurringItems.map((item) => {
+            {currencyRecurringItems.map((item) => {
               const acc = accounts.find((a) => a.id === item.accountId);
               const cat = categories.find((c) => c.id === item.categoryId);
               const remDays = item.reminderDaysBefore ?? 1;
@@ -1022,7 +1068,7 @@ export default function ControlScreen() {
 
             <View style={styles.headerSpread}>
               <Text style={styles.sectionTitle}>
-                Mis Cuotas ({installmentDebts.length})
+                Mis Cuotas ({currencyDebts.length})
               </Text>
               <TouchableOpacity
                 style={styles.newBtn}
@@ -1237,20 +1283,20 @@ export default function ControlScreen() {
               <View style={styles.loansSummaryCol}>
                 <Text style={styles.loansSummaryLabel}>ME DEBEN (PRESTÉ)</Text>
                 <Text style={[styles.loansSummaryVal, { color: '#4ADE80' }]}>
-                  +${totalOwedToMe.toFixed(2)}
+                  +{formatMoney(totalOwedToMe, cur)}
                 </Text>
               </View>
               <View style={styles.loansSummaryDivider} />
               <View style={styles.loansSummaryCol}>
                 <Text style={styles.loansSummaryLabel}>YO DEBO (PEDÍ PRESTADO)</Text>
                 <Text style={[styles.loansSummaryVal, { color: '#F87171' }]}>
-                  -${totalIOwe.toFixed(2)}
+                  -{formatMoney(totalIOwe, cur)}
                 </Text>
               </View>
             </View>
 
             <View style={styles.headerSpread}>
-              <Text style={styles.sectionTitle}>Registro de Préstamos ({loans.length})</Text>
+              <Text style={styles.sectionTitle}>Registro de Préstamos ({currencyLoans.length})</Text>
               <TouchableOpacity
                 style={styles.newBtn}
                 onPress={openNewLoanModal}
@@ -1260,7 +1306,7 @@ export default function ControlScreen() {
               </TouchableOpacity>
             </View>
 
-            {loans.map((loan) => {
+            {currencyLoans.map((loan) => {
               const remaining = Math.max(0, loan.totalAmount - loan.paidAmount);
               const pct = loan.totalAmount > 0 ? (loan.paidAmount / loan.totalAmount) * 100 : 0;
               const isLent = loan.direction === 'lent';
@@ -1293,15 +1339,32 @@ export default function ControlScreen() {
                             {isLent ? 'Me debe' : 'Le debo'}
                           </Text>
                         </View>
+                        {Boolean(loan.category) && (
+                          <View
+                            style={[
+                              styles.freqBadge,
+                              { backgroundColor: isDark ? '#3B0764' : '#F3E8FF', borderWidth: 1, borderColor: isDark ? '#7E22CE' : '#D8B4FE' },
+                            ]}
+                          >
+                            <Text style={[styles.freqBadgeText, { color: isDark ? '#E9D5FF' : '#6B21A8' }]}>
+                              🏷️ {loan.category}
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
                       {loan.notes ? <Text style={styles.itemSub}>{loan.notes}</Text> : null}
                       <Text style={styles.dueText}>
-                        Abonado: ${loan.paidAmount.toFixed(2)} de ${loan.totalAmount.toFixed(2)} •{' '}
+                        Abonado: {formatMoney(loan.paidAmount, cur)} de {formatMoney(loan.totalAmount, cur)} •{' '}
                         <Text style={styles.dueHighlight}>
-                          {loan.isSettled ? '¡Pagado completo!' : `Faltan $${remaining.toFixed(2)}`}
+                          {loan.isSettled ? '¡Pagado completo!' : `Faltan ${formatMoney(remaining, cur)}`}
                         </Text>
                       </Text>
+                      {Boolean(loan.fee && loan.fee > 0) && (
+                        <Text style={{ color: isDark ? '#FBBF24' : '#D97706', fontSize: 11, fontWeight: '700', marginTop: 1 }}>
+                          💸 Comisión registrada: {formatMoney(loan.fee!, cur)}
+                        </Text>
+                      )}
                       {Boolean(loan.accountId) && (
                         <Text style={{ color: isDark ? '#A78BFA' : '#7C3AED', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
                           🏦 Cuenta: {accounts.find((a) => a.id === loan.accountId)?.name || 'Asignada'}
@@ -1321,7 +1384,7 @@ export default function ControlScreen() {
                           { color: isLent ? '#4ADE80' : '#F87171' },
                         ]}
                       >
-                        ${remaining.toFixed(2)}
+                        {formatMoney(remaining, cur)}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
                         <TouchableOpacity onPress={() => openEditLoanModal(loan)}>
@@ -1353,6 +1416,8 @@ export default function ControlScreen() {
                         onPress={() => {
                           setPayingLoanId(loan.id);
                           setLoanPaymentInput(String(remaining));
+                          setLoanPayFee('');
+                          setLoanPayAccountId(loan.accountId || sortedAccounts[0]?.id || accounts[0]?.id || '');
                         }}
                       >
                         <Ionicons name="cash-outline" size={16} color="#052E16" />
@@ -1813,34 +1878,16 @@ export default function ControlScreen() {
         </View>
 
         {/* Cuenta bancaria vinculada */}
-        <Text style={styles.inputLabel}>💳 Cuenta donde se pagan las cuotas (Opcional)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {sortedAccounts.map((acc) => {
-            const isSel = debtAccountId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSel && {
-                    borderColor: isDark ? '#38BDF8' : '#0284C7',
-                    backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE',
-                  },
-                ]}
-                onPress={() => setDebtAccountId(isSel ? '' : acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSel && { color: isDark ? '#38BDF8' : '#0284C7', fontWeight: '700' },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="💳 Cuenta donde se pagan las cuotas (Opcional)"
+          accounts={sortedAccounts}
+          selectedId={debtAccountId}
+          onSelect={setDebtAccountId}
+          currency={cur}
+          allowEmpty
+          emptyLabel="Sin cuenta vinculada"
+          isOtherPersonAccount={isOtherPersonAccount}
+        />
 
         <Text style={styles.inputLabel}>Detalle adicional de Fechas (Opcional)</Text>
         <TextInput
@@ -1876,7 +1923,7 @@ export default function ControlScreen() {
         onClose={() => setPayingDebtId(null)}
       >
         <Text style={styles.modalTitle}>Abonar Cuota / Pago a Deuda</Text>
-        <Text style={styles.inputLabel}>Monto a abonar ($ USD)</Text>
+        <Text style={styles.inputLabel}>Monto a abonar ({cur})</Text>
         <TextInput
           style={styles.input}
           keyboardType="decimal-pad"
@@ -1884,37 +1931,16 @@ export default function ControlScreen() {
           onChangeText={setDebtPaymentInput}
         />
 
-        <Text style={styles.inputLabel}>
-          Opcional: ¿Descontar este pago de alguna de tus cuentas bancarias?
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          <TouchableOpacity
-            style={[
-              styles.chip,
-              debtPayFromAccId === '' && { borderColor: '#38BDF8', backgroundColor: '#0C4A6E' },
-            ]}
-            onPress={() => setDebtPayFromAccId('')}
-          >
-            <Text style={styles.chipText}>Solo bajar saldo de la deuda</Text>
-          </TouchableOpacity>
-          {sortedAccounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                debtPayFromAccId === acc.id && {
-                  borderColor: '#4ADE80',
-                  backgroundColor: '#14532D',
-                },
-              ]}
-              onPress={() => setDebtPayFromAccId(acc.id)}
-            >
-              <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <AccountSelectorField
+          label="Opcional: ¿Descontar este pago de alguna de tus cuentas bancarias?"
+          accounts={sortedAccounts}
+          selectedId={debtPayFromAccId}
+          onSelect={setDebtPayFromAccId}
+          currency={cur}
+          allowEmpty
+          emptyLabel="Solo bajar saldo de la deuda"
+          isOtherPersonAccount={isOtherPersonAccount}
+        />
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
           <TouchableOpacity
@@ -1997,42 +2023,39 @@ export default function ControlScreen() {
         }}
       >
         <Text style={styles.modalTitle}>Registrar Abono o Pago Total</Text>
-        <Text style={styles.inputLabel}>Monto abonado ($ USD)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="decimal-pad"
-          value={loanPaymentInput}
-          onChangeText={setLoanPaymentInput}
-        />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 2 }}>
+            <Text style={styles.inputLabel}>Monto abonado ($)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="decimal-pad"
+              value={loanPaymentInput}
+              onChangeText={setLoanPaymentInput}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inputLabel}>Comisión ($)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0.00"
+              placeholderTextColor="#64748B"
+              keyboardType="decimal-pad"
+              value={loanPayFee}
+              onChangeText={setLoanPayFee}
+            />
+          </View>
+        </View>
 
-        <Text style={styles.inputLabel}>Cuenta donde entra/sale el dinero (Opcional)</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {accounts.map((acc) => {
-            const isSel = loanPayAccountId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSel && {
-                    borderColor: '#22C55E',
-                    backgroundColor: isDark ? '#14532D' : '#DCFCE7',
-                  },
-                ]}
-                onPress={() => setLoanPayAccountId(isSel ? '' : acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSel && { color: isDark ? '#86EFAC' : '#15803D', fontWeight: '700' },
-                  ]}
-                >
-                  {acc.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label="Cuenta donde entra/sale el dinero (Opcional)"
+          accounts={sortedAccounts}
+          selectedId={loanPayAccountId}
+          onSelect={setLoanPayAccountId}
+          currency={cur}
+          allowEmpty
+          emptyLabel="Sin cuenta vinculada"
+          isOtherPersonAccount={isOtherPersonAccount}
+        />
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
           <TouchableOpacity
@@ -2040,6 +2063,7 @@ export default function ControlScreen() {
             onPress={() => {
               setPayingLoanId(null);
               setLoanPayAccountId('');
+              setLoanPayFee('');
             }}
           >
             <Text style={styles.cancelBtnText}>Cancelar</Text>
@@ -2049,11 +2073,13 @@ export default function ControlScreen() {
             onPress={async () => {
               if (payingLoanId) {
                 const amt = parseFloat(loanPaymentInput);
+                const feeAmt = parseFloat(loanPayFee) || 0;
                 if (amt > 0) {
-                  await registerLoanPayment(payingLoanId, amt, loanPayAccountId || undefined);
+                  await registerLoanPayment(payingLoanId, amt, loanPayAccountId || undefined, feeAmt);
                 }
                 setPayingLoanId(null);
                 setLoanPayAccountId('');
+                setLoanPayFee('');
               }
             }}
           >
@@ -2069,7 +2095,7 @@ export default function ControlScreen() {
         onClose={() => setContributingGoalId(null)}
       >
         <Text style={styles.modalTitle}>Abonar a Meta de Ahorro</Text>
-        <Text style={styles.inputLabel}>Monto a sumar a tu ahorro ($ USD)</Text>
+        <Text style={styles.inputLabel}>Monto a sumar a tu ahorro ({cur})</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. 100.00"
@@ -2160,54 +2186,51 @@ export default function ControlScreen() {
           onChangeText={setPersonName}
         />
 
-        <Text style={styles.inputLabel}>Monto Total ($ USD)</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 2 }}>
+            <Text style={styles.inputLabel}>Monto Total ($)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0.00"
+              placeholderTextColor="#64748B"
+              keyboardType="decimal-pad"
+              value={loanAmount}
+              onChangeText={setLoanAmount}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inputLabel}>Comisión ($)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0.00"
+              placeholderTextColor="#64748B"
+              keyboardType="decimal-pad"
+              value={loanFee}
+              onChangeText={setLoanFee}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.inputLabel}>🏷️ Categoría / Servicio (Opcional)</Text>
         <TextInput
           style={styles.input}
-          placeholder="0.00"
+          placeholder="Ej. Netflix, Spotify, Personal, Viaje..."
           placeholderTextColor="#64748B"
-          keyboardType="decimal-pad"
-          value={loanAmount}
-          onChangeText={setLoanAmount}
+          value={loanCategory}
+          onChangeText={setLoanCategory}
         />
 
         {/* Cuenta de donde salió o entró el dinero */}
-        <Text style={styles.inputLabel}>
-          🏦 {loanDirection === 'lent' ? '¿De qué cuenta prestaste el dinero?' : '¿En qué cuenta recibiste el préstamo?'}
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {sortedAccounts.map((acc) => {
-            const isSel = loanAccountId === acc.id;
-            return (
-              <TouchableOpacity
-                key={acc.id}
-                style={[
-                  styles.chip,
-                  isSel && {
-                    borderColor: loanDirection === 'lent' ? '#22C55E' : '#38BDF8',
-                    backgroundColor: isDark
-                      ? (loanDirection === 'lent' ? '#14532D' : '#0C4A6E')
-                      : (loanDirection === 'lent' ? '#DCFCE7' : '#E0F2FE'),
-                  },
-                ]}
-                onPress={() => setLoanAccountId(isSel ? '' : acc.id)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSel && {
-                      color: isDark
-                        ? (loanDirection === 'lent' ? '#86EFAC' : '#38BDF8')
-                        : (loanDirection === 'lent' ? '#15803D' : '#0284C7'),
-                      fontWeight: '700',
-                    },
-                  ]}
-                >
-                  {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <AccountSelectorField
+          label={`🏦 ${loanDirection === 'lent' ? '¿De qué cuenta prestaste el dinero?' : '¿En qué cuenta recibiste el préstamo?'}`}
+          accounts={sortedAccounts}
+          selectedId={loanAccountId}
+          onSelect={setLoanAccountId}
+          currency={cur}
+          allowEmpty
+          emptyLabel="Sin cuenta vinculada"
+          isOtherPersonAccount={isOtherPersonAccount}
+        />
 
         <DateField
           label="📅 Fecha de promesa o vencimiento (Opcional)"
@@ -2403,7 +2426,7 @@ export default function ControlScreen() {
           onChangeText={setTitle}
         />
 
-        <Text style={styles.inputLabel}>Monto Total Cobrado ($ USD)</Text>
+        <Text style={styles.inputLabel}>Monto Total Cobrado ({cur})</Text>
         <TextInput
           style={styles.input}
           placeholder="0.00"
@@ -2549,47 +2572,21 @@ export default function ControlScreen() {
           ))}
         </ScrollView>
 
-        <Text style={styles.inputLabel}>Cuenta donde se aplicará al confirmar</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {sortedAccounts.map((acc) => (
-            <TouchableOpacity
-              key={acc.id}
-              style={[
-                styles.chip,
-                selectedAccountId === acc.id && {
-                  borderColor: '#38BDF8',
-                  backgroundColor: '#0C4A6E',
-                },
-              ]}
-              onPress={() => setSelectedAccountId(acc.id)}
-            >
-              <Text style={styles.chipText}>
-                {acc.name} (${acc.balance.toFixed(0)}){isOtherPersonAccount(acc) ? ' 👤' : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <AccountSelectorField
+          label="Cuenta donde se aplicará al confirmar"
+          accounts={sortedAccounts}
+          selectedId={selectedAccountId}
+          onSelect={setSelectedAccountId}
+          currency={cur}
+          isOtherPersonAccount={isOtherPersonAccount}
+        />
 
-        <Text style={styles.inputLabel}>Categoría</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          {categories
-            .filter((c) => c.type === type)
-            .map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.chip,
-                  selectedCategoryId === cat.id && {
-                    borderColor: cat.color,
-                    backgroundColor: cat.color + '33',
-                  },
-                ]}
-                onPress={() => setSelectedCategoryId(cat.id)}
-              >
-                <Text style={styles.chipText}>{cat.name}</Text>
-              </TouchableOpacity>
-            ))}
-        </ScrollView>
+        <CategorySelectorField
+          label="Categoría"
+          categories={categories.filter((c) => c.type === type)}
+          selectedId={selectedCategoryId}
+          onSelect={setSelectedCategoryId}
+        />
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddRecModal(false)}>
@@ -2751,7 +2748,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: colors.cardBorder,
       marginBottom: 16,
     },
-    loansSummaryCol: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
+    loansSummaryCol: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 2 },
     loansSummaryDivider: { width: 1, backgroundColor: colors.cardBorder, marginHorizontal: 6 },
     loansSummaryLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
     loansSummaryVal: { fontSize: 20, fontWeight: '800', marginTop: 4 },

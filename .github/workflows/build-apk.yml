@@ -44,64 +44,55 @@ jobs:
         working-directory: ./android
         run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
 
-      - name: Renombrar APK con versión 1.0.5
+      - name: Renombrar APK con versión 1.0.6
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk Perk-Wallet-v1.0.5.apk
+          cp android/app/build/outputs/apk/release/app-release.apk Perk-Wallet-v1.0.6.apk
           cp android/app/build/outputs/apk/release/app-release.apk Perk-Wallet.apk
-          cp android/app/build/outputs/apk/release/app-release.apk Finanzas-USA-v1.0.5.apk
 
       - name: Subir APK como Artefacto descargable
         uses: actions/upload-artifact@v4
         with:
-          name: Perk-Wallet-v1.0.5-APK
-          path: Perk-Wallet-v1.0.5.apk
+          name: Perk-Wallet-v1.0.6-APK
+          path: Perk-Wallet-v1.0.6.apk
 
-      - name: Publicar APK v1.0.5 en GitHub Releases
+      - name: Publicar APK v1.0.6 en GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.5
-          name: "Perk Wallet Android APK (v1.0.5) — Nueva Identidad, Gráficas y Control de Ahorros"
+          tag_name: v1.0.6
+          name: "Perk Wallet Android APK (v1.0.6) — Selectores Inteligentes, Multimoneda y Gastos Modificados"
           make_latest: true
           body: |
-            ### 🚀 Perk Wallet v1.0.5 — Nueva Identidad, Gráficas Inteligentes y Control Total de Ahorros
+            ### 🚀 Perk Wallet v1.0.6 — Selectores Inteligentes, Multimoneda Real y Control de Gastos Olvidados
 
-            ¡Te damos la bienvenida a **Perk Wallet**! Esta versión **v1.0.5** marca una evolución integral de la app, combinando un diseño moderno estilo billetera digital, soporte multimoneda global, métricas operativas limpias y copias de seguridad automáticas:
+            Esta actualización **v1.0.6** mejora drásticamente la experiencia de registro, incorpora soporte multimoneda independiente por país/banco, calendario de movimientos y control automático de gastos olvidados:
 
             ---
 
-            #### 💎 1. Nueva Identidad de Marca: Perk Wallet
-            - La app evoluciona oficialmente de *Finanzas USA* a **Perk Wallet**, diseñada para gestionar finanzas personales en cualquier parte del mundo con más de 25 divisas globales (USD, EUR, MXN, COP, GBP, JPY, CAD, etc.).
+            #### 📋 1. Selectores Verticales con Buscador (Cuentas, Categorías y Bancos)
+            - **Adiós a deslizar horizontalmente**: Todos los formularios ahora cuentan con selectores desplegables verticales con buscador, íconos, saldos y agrupación automática (*Incluido en el total*, *Ahorros / Excluido*, *Dinero Ajeno*).
 
-            #### 📊 2. Gráficas Inteligentes Enfocadas en tu Balance Operativo
-            - **Filtro de Balance Disponible**: Las gráficas circulares, flujos netos, ingresos y gastos ahora operan exclusivamente sobre tu dinero disponible para gastos (`Mi Balance Disponible`), omitiendo las cuentas de ahorro para no distorsionar tu flujo diario.
-            - **Cálculo sincronizado**: Desglose por categorías y comisiones bancarias 100% fiel a los movimientos de tus cuentas activas.
+            #### 💱 2. Multimoneda Real, Monedas Secundarias y Bancos por País
+            - **Moneda Principal y Secundarias**: Agrega divisas secundarias en Ajustes y alterna entre ellas en 1 toque desde el botón de moneda en Resumen.
+            - **Aislamiento por País/Moneda**: Cada banco y cuenta es independiente en su divisa. Al cambiar de moneda (ej. `USD` ↔ `COP`), los bancos, programados, cuotas, préstamos y movimientos de un país no se mezclan con los del otro.
+            - **Catálogo de Bancos por País**: Bancos locales integrados (Colombia, México, EE. UU., España, Venezuela, Argentina, Chile, Perú, Brasil, Rep. Dominicana, Canadá y Reino Unido).
+            - **Formato Limpio sin Desbordes**: Todos los montos y etiquetas muestran la moneda activa sin cortarse ni salirse de sus tarjetas.
 
-            #### 💰 3. Separación Rigurosa: Mis Ahorros vs Dinero Ajeno
-            - **Mis Ahorros Protegidos**: El dinero que destinas a ahorros cuenta con su propio sub-balance e indicadores independientes.
-            - **Cuentas Separadas / Dinero Ajeno**: Ahora filtra estrictamente las cuentas de terceras personas (`isOtherPersonAccount`). Tu dinero y tus ahorros nunca volverán a mezclarse con cuentas de otros.
+            #### 📅 3. Movimientos Futuros Programados + Calendario de Historial
+            - **Fechas Futuras**: Los gastos, ingresos o transferencias con fecha futura quedan marcados como `⏳ Programado` y no alteran tu saldo sino hasta que llegue el día indicado.
+            - **Historial en Calendario**: La pantalla principal muestra los 6 movimientos más recientes e incluye el botón **"Ver más en Calendario"** para explorar tus gastos e ingresos día por día.
 
-            #### 🏦 4. Gestión y Reordenamiento Interactivo de Cuentas
-            - **Arrastrar y Soltar (Drag & Drop)**: Reordena tus cuentas apretando y subiendo o bajando con el dedo en tiempo real, o usando las flechas de posición.
-            - **Cuenta Principal Automática**: La cuenta que coloques en la posición #1 es seleccionada automáticamente al registrar cualquier gasto o ingreso.
-            - **Sección Aparte de Mis Ahorros**: Cuentas de ahorro separadas en su propio bloque con saldo acumulado independiente y opción de ocultar/mostrar.
-            - **Botones Optimizados**: Corrección del desborde de texto en "Agregar Banco o Cuenta" y distribución balanceada de acciones.
+            #### 📉 4. Gráfica Aparte de "Gastos Modificados" (Gastos Olvidados)
+            - Al ajustar manualmente el saldo de una cuenta hacia abajo porque olvidaste registrar un gasto, la diferencia se guarda automáticamente bajo **`Gastos Modificados`** y aparece en su propia tarjeta/gráfica en la pestaña **Gráficas**.
 
-            #### 📁 5. Respaldos Automáticos y Google Drive
-            - Creación automática y organizada en la carpeta dedicada `PerkWallet_Respaldos/`.
-            - Nombres descriptivos con fecha y hora (`PerkWallet_Respaldo_YYYY-MM-DD_HH-mm.json`).
-            - Auto-backup silencioso en segundo plano al abrir y cerrar la app.
-            - Integración fluida para subir a Google Drive o compartir en almacenamiento local.
+            #### 🤝 5. Recurrentes Compartidos, Comisiones en Préstamos y Memoria en Ahorros
+            - **Consolidación en Préstamos**: Los gastos recurrentes compartidos que aún no te pagan se envían a Préstamos bajo la categoría del servicio (ej. *Netflix*) y se **acumulan en un solo préstamo** si es la misma persona y servicio.
+            - **Comisiones en Préstamos**: Soporte de comisiones (`$`) tanto al crear un préstamo como al registrar abonos o cobros.
+            - **Persistencia en Bancos**: La app recuerda cuando ocultas la sección de *"Mis Cuentas de Ahorro"*.
 
-            #### 🔔 6. Recordatorios Locales Diarios en Android
-            - Recordatorio configurable con selección de hora para registrar tus gastos cotidianos.
-            - Alertas preventivas 1 a 2 días antes de cada vencimiento de pagos recurrentes o cuotas.
-            - Interfaz limpia: eliminado botón de prueba en recurrentes para una experiencia más profesional.
-
-            #### 🌓 7. Modo Dual Claro / Oscuro con Alto Contraste
-            - Paleta ergonómica optimizada en modo claro y oscuro, eliminando cualquier inconsistencia de contraste o textos ilegibles.
-            - Navegación fluida: al cambiar de pestaña la app vuelve automáticamente al inicio superior.
+            #### 🔔 6. Correcciones Adicionales y Notificaciones
+            - **Recordatorio Diario de Gastos Arreglado**: Los recordatorios diarios en Android ya no se borran al sincronizar alertas de pagos recurrentes.
+            - **Corrección Visual**: Arreglado el botón *Eliminar* en edición de movimientos, eliminado el icono de ojo repetido en Balance Total y quitado el botón repetido de *Registrar* en el historial.
           files: |
-            Perk-Wallet-v1.0.5.apk
+            Perk-Wallet-v1.0.6.apk
             Perk-Wallet.apk
-            Finanzas-USA-v1.0.5.apk
             android/app/build/outputs/apk/release/app-release.apk

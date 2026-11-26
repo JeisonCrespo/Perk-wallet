@@ -14,8 +14,10 @@ import { useFinance } from '../../src/context/FinanceContext';
 import { DonutChart } from '../../src/components/DonutChart';
 import { GENERAL_ICONS, SmartIcon } from '../../src/components/BrandIcon';
 import { KeyboardSafeModal } from '../../src/components/KeyboardSafeModal';
+import { CategorySelectorField } from '../../src/components/PickerModal';
 import { useTheme, ThemeColors } from '../../src/context/ThemeContext';
 import { CategoryBreakdown } from '../../src/types/finance';
+import { formatMoney } from '../../src/constants/currencies';
 
 export default function AnalyticsAndBudgetsScreen() {
   const { colors, isDark } = useTheme();
@@ -34,7 +36,10 @@ export default function AnalyticsAndBudgetsScreen() {
     getBudgetSpentAmount,
     isOtherPersonAccount,
     isOwnSavingsAccount,
+    userProfile,
   } = useFinance();
+
+  const cur = userProfile.currency || 'USD';
 
   const params = useLocalSearchParams<{ tab?: string }>();
   const [viewMode, setViewMode] = useState<'budgets' | 'chart'>('budgets');
@@ -387,7 +392,7 @@ export default function AnalyticsAndBudgetsScreen() {
                   </View>
                 </View>
                 <Text style={{ color: isDark ? '#F59E0B' : '#B45309', fontSize: 17, fontWeight: '800' }}>
-                  ${antTotalThisMonth.toFixed(2)}
+                  {formatMoney(antTotalThisMonth, cur)}
                 </Text>
               </View>
 
@@ -577,14 +582,14 @@ export default function AnalyticsAndBudgetsScreen() {
               <View style={styles.cashflowCol}>
                 <Text style={styles.cashflowLabel} numberOfLines={1}>INGRESOS</Text>
                 <Text style={[styles.cashflowVal, { color: '#4ADE80' }]} numberOfLines={1} adjustsFontSizeToFit>
-                  +${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  +{formatMoney(totalIncome, cur, true)}
                 </Text>
               </View>
               <View style={styles.cashflowDivider} />
               <View style={styles.cashflowCol}>
                 <Text style={styles.cashflowLabel} numberOfLines={1}>GASTOS</Text>
                 <Text style={[styles.cashflowVal, { color: '#F87171' }]} numberOfLines={1} adjustsFontSizeToFit>
-                  -${totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  -{formatMoney(totalExpense, cur, true)}
                 </Text>
               </View>
               <View style={styles.cashflowDivider} />
@@ -598,7 +603,7 @@ export default function AnalyticsAndBudgetsScreen() {
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
-                  ${(totalIncome - totalExpense).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {formatMoney(totalIncome - totalExpense, cur, true)}
                 </Text>
               </View>
             </View>
@@ -646,6 +651,7 @@ export default function AnalyticsAndBudgetsScreen() {
               <DonutChart
                 data={breakdown}
                 centerLabel={selectedType === 'expense' ? 'Total Gastado' : 'Total Ingresado'}
+                currency={cur}
               />
 
               {breakdown.length === 0 ? (
@@ -676,7 +682,7 @@ export default function AnalyticsAndBudgetsScreen() {
 
                         <View style={{ alignItems: 'flex-end', marginLeft: 6 }}>
                           <Text style={styles.catTotal} numberOfLines={1} adjustsFontSizeToFit>
-                            ${item.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatMoney(item.total, cur, true)}
                           </Text>
                           <Text style={[styles.catPercent, { color: item.color }]}>
                             {item.percentage.toFixed(1)}%
@@ -700,6 +706,91 @@ export default function AnalyticsAndBudgetsScreen() {
                 </View>
               )}
             </View>
+
+            {/* Tarjeta Aparte: Gráfica / Control de Gastos Modificados (Ajustes de Saldo por Gastos Olvidados) */}
+            {(() => {
+              const adjustedTxs = filteredTx.filter(
+                (t) => t.type === 'expense' && t.categoryId === 'cat-adjusted'
+              );
+              const adjustedTotal = adjustedTxs.reduce((s, t) => s + t.amount, 0);
+              const adjustedPct = totalExpense > 0 ? (adjustedTotal / totalExpense) * 100 : 0;
+
+              return (
+                <View style={styles.chartCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 10,
+                          backgroundColor: isDark ? '#451A03' : '#FEF3C7',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={18} color="#F59E0B" />
+                      </View>
+                      <View>
+                        <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>
+                          Gastos Modificados
+                        </Text>
+                        <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                          Diferencias al ajustar saldo (gastos olvidados)
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '900' }}>
+                      {formatMoney(adjustedTotal, cur, true)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(adjustedPct, 100)}%`,
+                          backgroundColor: '#F59E0B',
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 6, marginBottom: adjustedTxs.length > 0 ? 10 : 0 }}>
+                    {adjustedTxs.length === 0
+                      ? 'No hay gastos modificados en este período.'
+                      : `${adjustedTxs.length} ${adjustedTxs.length === 1 ? 'ajuste' : 'ajustes'} • Representa el ${adjustedPct.toFixed(1)}% de tus gastos`}
+                  </Text>
+
+                  {adjustedTxs.slice(0, 5).map((atx) => {
+                    const accName = accounts.find((a) => a.id === atx.accountId)?.name || 'Cuenta';
+                    return (
+                      <View
+                        key={atx.id}
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          paddingVertical: 7,
+                          borderTopWidth: 1,
+                          borderTopColor: colors.cardBorder,
+                        }}
+                      >
+                        <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                          <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                            {accName}
+                          </Text>
+                          <Text style={{ color: colors.textMuted, fontSize: 11 }}>{atx.date}</Text>
+                        </View>
+                        <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '800' }}>
+                          -{formatMoney(atx.amount, cur, true)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
 
             {/* Runway / Supervivencia Financiera con tu Sueldo 🧭 */}
             <View style={styles.runwayCard}>
@@ -912,7 +1003,7 @@ export default function AnalyticsAndBudgetsScreen() {
           onChangeText={setBudgetTitle}
         />
 
-        <Text style={styles.inputLabel}>Tope / Meta Mensual ($ USD)</Text>
+        <Text style={styles.inputLabel}>Tope / Meta Mensual ({cur})</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. 200.00"
@@ -922,40 +1013,24 @@ export default function AnalyticsAndBudgetsScreen() {
           onChangeText={setBudgetLimit}
         />
 
-        <Text style={styles.inputLabel}>
-          Opcional: ¿Vincular automáticamente con una categoría de gastos?
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              linkedCategoryId === '' && styles.filterChipActive,
-            ]}
-            onPress={() => setLinkedCategoryId('')}
-          >
-            <Text style={styles.filterChipText}>No vincular (Solo manual)</Text>
-          </TouchableOpacity>
-
-          {categories
-            .filter((c) => c.type === 'expense')
-            .map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.filterChip,
-                  linkedCategoryId === cat.id && styles.filterChipActive,
-                ]}
-                onPress={() => {
-                  setLinkedCategoryId(cat.id);
-                  setBudgetIcon(cat.icon);
-                  setBudgetColor(cat.color);
-                  if (!budgetTitle.trim()) setBudgetTitle(cat.name);
-                }}
-              >
-                <Text style={styles.filterChipText}>{cat.name}</Text>
-              </TouchableOpacity>
-            ))}
-        </ScrollView>
+        <CategorySelectorField
+          label="Opcional: ¿Vincular automáticamente con una categoría de gastos?"
+          categories={categories.filter((c) => c.type === 'expense')}
+          selectedId={linkedCategoryId}
+          onSelect={(catId) => {
+            setLinkedCategoryId(catId);
+            if (catId) {
+              const cat = categories.find((c) => c.id === catId);
+              if (cat) {
+                setBudgetIcon(cat.icon);
+                setBudgetColor(cat.color);
+                if (!budgetTitle.trim()) setBudgetTitle(cat.name);
+              }
+            }
+          }}
+          allowEmpty
+          emptyLabel="No vincular (Solo manual)"
+        />
 
         <Text style={styles.inputLabel}>Ícono</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 4 }}>
@@ -996,7 +1071,7 @@ export default function AnalyticsAndBudgetsScreen() {
         onClose={() => setAddingSpendBudgetId(null)}
       >
         <Text style={styles.modalTitle}>Sumar al Presupuesto</Text>
-        <Text style={styles.inputLabel}>Monto a sumar a lo gastado este mes ($ USD)</Text>
+        <Text style={styles.inputLabel}>Monto a sumar a lo gastado este mes ({cur})</Text>
         <TextInput
           style={styles.input}
           placeholder="Ej. 25.00"
@@ -1146,7 +1221,7 @@ const getStyles = (colors: ThemeColors, isDark: boolean) =>
       borderColor: colors.cardBorder,
       marginBottom: 14,
     },
-    cashflowCol: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+    cashflowCol: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 4 },
     cashflowDivider: { width: 1, backgroundColor: colors.cardBorder, marginHorizontal: 6 },
     cashflowLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700' },
     cashflowVal: { fontSize: 15, fontWeight: '800', marginTop: 4 },
