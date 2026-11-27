@@ -59,7 +59,7 @@ export const calculateProjectedDates = (
     if (freq === 'monthly') {
       baseDate.setMonth(baseDate.getMonth() + i);
     } else if (freq === 'biweekly') {
-      baseDate.setDate(baseDate.getDate() + i * 15);
+      baseDate.setDate(baseDate.getDate() + i * 14);
     } else if (freq === 'weekly') {
       baseDate.setDate(baseDate.getDate() + i * 7);
     }
@@ -434,7 +434,7 @@ export default function ControlScreen() {
     }
 
     const freqLabel =
-      debtFrequency === 'monthly' ? 'Cada Mes' : debtFrequency === 'biweekly' ? 'Cada 15 Días' : 'Semanal';
+      debtFrequency === 'monthly' ? 'Cada Mes' : debtFrequency === 'biweekly' ? 'Cada 2 Semanas' : 'Semanal';
     const autoDueDates =
       debtDueDates.trim() || `${freqLabel} (Próx: ${debtFirstDueDate})`;
 
@@ -1176,7 +1176,7 @@ export default function ControlScreen() {
                           {debt.frequency && (
                             <View style={[styles.freqBadge, { backgroundColor: isDark ? '#1E293B' : '#E0F2FE' }]}>
                               <Text style={[styles.freqBadgeText, { color: isDark ? '#38BDF8' : '#0284C7' }]}>
-                                {debt.frequency === 'monthly' ? 'Mensual' : debt.frequency === 'biweekly' ? 'Cada 15d' : 'Semanal'}
+                                {debt.frequency === 'monthly' ? 'Mensual' : debt.frequency === 'biweekly' ? 'Cada 14d' : 'Semanal'}
                               </Text>
                             </View>
                           )}
@@ -1673,10 +1673,7 @@ export default function ControlScreen() {
               placeholderTextColor="#64748B"
               keyboardType="decimal-pad"
               value={debtRemaining}
-              onChangeText={(v) => {
-                setDebtRemaining(v);
-                if (!debtTotalAmount) setDebtTotalAmount(v);
-              }}
+              onChangeText={setDebtRemaining}
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -1747,7 +1744,7 @@ export default function ControlScreen() {
         <View style={{ flexDirection: 'row', gap: 8, marginVertical: 4 }}>
           {[
             { id: 'monthly' as const, label: 'Cada Mes' },
-            { id: 'biweekly' as const, label: 'Cada 15 Días' },
+            { id: 'biweekly' as const, label: 'Cada 2 Semanas (14d)' },
             { id: 'weekly' as const, label: 'Semanal' },
           ].map((f) => {
             const isSel = debtFrequency === f.id;
